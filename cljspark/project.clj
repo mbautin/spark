@@ -14,5 +14,7 @@
                  [de.javakaffee/kryo-serializers "0.9"]
                  [it.unimi.dsi/fastutil "6.4.4"]
                  [org.eclipse.jetty/jetty-server "7.5.3.v20111011"]
-                 [com.ning/compress-lzf "0.8.4"]])
+                 [com.ning/compress-lzf "0.8.4"]
+                 [org.apache.hadoop/hadoop-core "0.20.205.0"]
+                 [asm/asm-all "3.3.1"]])
 
