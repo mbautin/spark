@@ -35,7 +35,9 @@
   ([^String master ^String framework-name]
      (JavaSparkContext. master framework-name))
   ([^String master ^String framework-name ^String spark-home & jars]
-     (JavaSparkContext. master framework-name spark-home (to-array jars))))
+     (if (nil? jars)
+       (JavaSparkContext. master framework-name spark-home "")
+       (JavaSparkContext. master framework-name spark-home (to-array jars)))))
 
 ;;   val env = sc.env
 
@@ -49,10 +51,10 @@
 ;;     parallelize(list, sc.defaultParallelism)
 (defn parallelize
   "Parallelize a collection into an RDD"
-  ([sc coll num-slices]
-     (.parallelize sc coll (int num-slices)))
-  ([sc coll]
-     (.parallelize sc coll)))
+  ([jsc coll num-slices]
+     (.parallelize jsc (java.util.ArrayList. coll) (int num-slices)))
+  ([jsc coll]
+     (.parallelize jsc (java.util.ArrayList. coll))))
 
 ;;   def parallelizePairs[K, V](list: java.util.List[Tuple2[K, V]], numSlices: Int)
 ;;   : JavaPairRDD[K, V] = {
@@ -78,10 +80,10 @@
 ;;   def textFile(path: String, minSplits: Int): JavaRDD[String] = sc.textFile(path, minSplits)
 (defn text-file
   "Create an RDD from a text file."
-  ([sc ^String path min-splits]
-     (.textFile sc path (int min-splits)))
-  ([sc ^String path]
-     (.textFile sc path)))
+  ([jsc ^String path min-splits]
+     (.textFile jsc path (int min-splits)))
+  ([jsc ^String path]
+     (.textFile jsc path)))
 ;;   /**Get an RDD for a Hadoop SequenceFile with given key and value types */
 ;;   def sequenceFile[K, V](path: String,
 ;;     keyClass: Class[K],
@@ -227,9 +229,13 @@
 
 ;;   def intAccumulator(initialValue: Int): Accumulator[Int] =
 ;;     sc.accumulator(initialValue)(IntAccumulatorParam)
+(defn int-accumulator [jsc initial-value]
+  (.intAccumulator jsc initial-value))
 
 ;;   def doubleAccumulator(initialValue: Double): Accumulator[Double] =
 ;;     sc.accumulator(initialValue)(DoubleAccumulatorParam)
+(defn double-accumulator [jsc initial-value]
+  (.doubleAccumulator jsc initial-value))
 
 ;;   def accumulator[T](initialValue: T, accumulatorParam: AccumulatorParam[T]): Accumulator[T] =
 ;;     sc.accumulator(initialValue)(accumulatorParam)
@@ -239,9 +245,16 @@
 ;;   def stop() {
 ;;     sc.stop()
 ;;   }
+(defn stop [jsc]
+  (.stop jsc))
 
 ;;   def getSparkHome(): Option[String] = sc.getSparkHome()
 ;; }
+(defn get-spark-home [jsc]
+  (let [opt (.getSparkHome jsc)]
+    (if (.isEmpty opt)
+      nil
+      (.get opt))))
 
 ;; object JavaSparkContext {
 ;;   implicit def fromSparkContext(sc: SparkContext): JavaSparkContext = new JavaSparkContext(sc)
