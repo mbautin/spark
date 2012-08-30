@@ -258,6 +258,12 @@
 
 ;; object JavaSparkContext {
 ;;   implicit def fromSparkContext(sc: SparkContext): JavaSparkContext = new JavaSparkContext(sc)
+(defn from-spark-context [sc]
+  "Create JavaSparkContext from a SparkContext"
+  (JavaSparkContext. sc))
 
 ;;   implicit def toSparkContext(jsc: JavaSparkContext): SparkContext = jsc.sc
 ;; }
+(defn to-spark-context [jsc]
+  "Get the SparkContext from a JavaSparkContext"
+  (.sc jsc))
