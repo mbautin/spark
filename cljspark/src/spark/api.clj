@@ -19,15 +19,6 @@
 
 ;; import scala.collection.JavaConversions
 
-;; class JavaSparkContext(val sc: SparkContext) extends JavaSparkContextVarargsWorkaround {
-
-;;   def this(master: String, frameworkName: String) = this(new SparkContext(master, frameworkName))
-
-;;   def this(master: String, frameworkName: String, sparkHome: String, jarFile: String) =
-;;     this(new SparkContext(master, frameworkName, sparkHome, Seq(jarFile)))
-
-;;   def this(master: String, frameworkName: String, sparkHome: String, jars: Array[String]) =
-;;     this(new SparkContext(master, frameworkName, sparkHome, jars.toSeq))
 (defn spark-context
   "Create a new Spark context."
   ([sc] ;; Scala SparkContext
@@ -37,22 +28,17 @@
   ([^String master ^String framework-name ^String spark-home & jars]
      (if (nil? jars)
        (JavaSparkContext. master framework-name spark-home "")
-       (JavaSparkContext. master framework-name spark-home (to-array jars)))))
+       (if (and (= 1 (count jars)) (coll? (first jars)))
+         (JavaSparkContext. master framework-name spark-home (to-array jars))))))
 
 ;;   val env = sc.env
+(defn env [jsc]
+  (.env (.sc jsc)))
 
-;;   def parallelize[T](list: java.util.List[T], numSlices: Int): JavaRDD[T] = {
-;;     implicit val cm: ClassManifest[T] =
-;;       implicitly[ClassManifest[AnyRef]].asInstanceOf[ClassManifest[T]]
-;;     sc.parallelize(JavaConversions.asScalaBuffer(list), numSlices)
-;;   }
-
-;;   def parallelize[T](list: java.util.List[T]): JavaRDD[T] =
-;;     parallelize(list, sc.defaultParallelism)
 (defn parallelize
-  "Parallelize a collection into an RDD"
-  ([jsc coll num-slices]
-     (.parallelize jsc (java.util.ArrayList. coll) (int num-slices)))
+  "Parallelize a collection into a JavaRDD"
+  ([jsc coll ^Integer num-slices]
+     (.parallelize jsc (java.util.ArrayList. coll) num-slices))
   ([jsc coll]
      (.parallelize jsc (java.util.ArrayList. coll))))
 
@@ -74,6 +60,12 @@
 
 ;;   def parallelizeDoubles(list: java.util.List[java.lang.Double]): JavaDoubleRDD =
 ;;     parallelizeDoubles(list, sc.defaultParallelism)
+(defn parallelize-doubles
+  "Parallelize a collection of Doubles into a JavaDoubleRDD"
+  ([jsc ^doubles dbls ^Integer num-slices]
+     (.parallelizeDoubles jsc (java.util.ArrayList. dbls) num-slices))
+  ([jsc ^doubles dbls]
+     (.parallelizeDoubles jsc (java.util.ArrayList. dbls))))
 
 ;;   def textFile(path: String): JavaRDD[String] = sc.textFile(path)
 
@@ -241,6 +233,8 @@
 ;;     sc.accumulator(initialValue)(accumulatorParam)
 
 ;;   def broadcast[T](value: T): Broadcast[T] = sc.broadcast(value)
+(defn broadcast [value jsc]
+  (.broadcast (.sc jsc) value))
 
 ;;   def stop() {
 ;;     sc.stop()
