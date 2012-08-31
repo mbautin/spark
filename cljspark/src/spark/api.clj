@@ -54,12 +54,6 @@
 ;;   def parallelizePairs[K, V](list: java.util.List[Tuple2[K, V]]): JavaPairRDD[K, V] =
 ;;     parallelizePairs(list, sc.defaultParallelism)
 
-;;   def parallelizeDoubles(list: java.util.List[java.lang.Double], numSlices: Int): JavaDoubleRDD =
-;;     JavaDoubleRDD.fromRDD(sc.parallelize(JavaConversions.asScalaBuffer(list).map(_.doubleValue()),
-;;       numSlices))
-
-;;   def parallelizeDoubles(list: java.util.List[java.lang.Double]): JavaDoubleRDD =
-;;     parallelizeDoubles(list, sc.defaultParallelism)
 (defn parallelize-doubles
   "Parallelize a collection of Doubles into a JavaDoubleRDD"
   ([jsc ^doubles dbls ^Integer num-slices]
@@ -67,9 +61,6 @@
   ([jsc ^doubles dbls]
      (.parallelizeDoubles jsc (java.util.ArrayList. dbls))))
 
-;;   def textFile(path: String): JavaRDD[String] = sc.textFile(path)
-
-;;   def textFile(path: String, minSplits: Int): JavaRDD[String] = sc.textFile(path, minSplits)
 (defn text-file
   "Create an RDD from a text file."
   ([jsc ^String path min-splits]
@@ -203,7 +194,11 @@
 
 (defn union [rdd & rdds]
   "Union of RDDs"
-  (.union (JavaSparkContext/fromSparkContext (.context rdd)) rdd (java.util.ArrayList. rdds)))
+  (if (nil? rdds)
+    (.union (JavaSparkContext/fromSparkContext (.context (first rdd))) (first rdd) (java.util.ArrayList. (rest rdd)))
+    (if (coll? (first rdds))
+      (.union (JavaSparkContext/fromSparkContext (.context rdd)) rdd (java.util.ArrayList. (first rdds)))
+      (.union (JavaSparkContext/fromSparkContext (.context rdd)) rdd (java.util.ArrayList. rdds)))))
 
 ;;   override def union[K, V](first: JavaPairRDD[K, V], rest: java.util.List[JavaPairRDD[K, V]])
 ;;       : JavaPairRDD[K, V] = {
