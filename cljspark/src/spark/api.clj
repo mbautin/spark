@@ -1,7 +1,8 @@
 ;; package spark.api.java
 (ns spark.api
   (:import (spark.api.java JavaSparkContext))
-  (:import (scala.collection JavaConversions)))
+  (:import (scala.collection JavaConversions))
+  (:import (scala Tuple2)))
 
 ;; import spark.{Accumulator, AccumulatorParam, RDD, SparkContext}
 ;; import spark.SparkContext.IntAccumulatorParam
@@ -53,6 +54,12 @@
 
 ;;   def parallelizePairs[K, V](list: java.util.List[Tuple2[K, V]]): JavaPairRDD[K, V] =
 ;;     parallelizePairs(list, sc.defaultParallelism)
+
+(defn parallelize-pairs
+  ([jsc pairs num-slices]
+     (.parallelizePairs jsc (java.util.ArrayList pairs) num-slices))
+  ([jsc pairs]
+     (.parallelizePairs jsc (java.util.ArrayList. pairs))))
 
 (defn parallelize-doubles
   "Parallelize a collection of Doubles into a JavaDoubleRDD"
