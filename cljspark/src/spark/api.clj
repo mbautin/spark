@@ -1,8 +1,6 @@
 ;; package spark.api.java
 (ns spark.api
-  (:import (spark.api.java JavaSparkContext))
-  (:import (scala.collection JavaConversions))
-  (:import (scala Tuple2)))
+  (:import (spark.api.java JavaSparkContext)))
 
 ;; import spark.{Accumulator, AccumulatorParam, RDD, SparkContext}
 ;; import spark.SparkContext.IntAccumulatorParam
@@ -43,19 +41,8 @@
   ([jsc coll]
      (.parallelize jsc (java.util.ArrayList. coll))))
 
-;;   def parallelizePairs[K, V](list: java.util.List[Tuple2[K, V]], numSlices: Int)
-;;   : JavaPairRDD[K, V] = {
-;;     implicit val kcm: ClassManifest[K] =
-;;       implicitly[ClassManifest[AnyRef]].asInstanceOf[ClassManifest[K]]
-;;     implicit val vcm: ClassManifest[V] =
-;;       implicitly[ClassManifest[AnyRef]].asInstanceOf[ClassManifest[V]]
-;;     JavaPairRDD.fromRDD(sc.parallelize(JavaConversions.asScalaBuffer(list), numSlices))
-;;   }
-
-;;   def parallelizePairs[K, V](list: java.util.List[Tuple2[K, V]]): JavaPairRDD[K, V] =
-;;     parallelizePairs(list, sc.defaultParallelism)
-
 (defn parallelize-pairs
+  "Parallelize a collection of scala.Tuple2 into a JavaPairRDD"
   ([jsc pairs num-slices]
      (.parallelizePairs jsc (java.util.ArrayList pairs) num-slices))
   ([jsc pairs]
@@ -74,130 +61,52 @@
      (.textFile jsc path (int min-splits)))
   ([jsc ^String path]
      (.textFile jsc path)))
-;;   /**Get an RDD for a Hadoop SequenceFile with given key and value types */
-;;   def sequenceFile[K, V](path: String,
-;;     keyClass: Class[K],
-;;     valueClass: Class[V],
-;;     minSplits: Int
-;;     ): JavaPairRDD[K, V] = {
-;;     implicit val kcm = ClassManifest.fromClass(keyClass)
-;;     implicit val vcm = ClassManifest.fromClass(valueClass)
-;;     new JavaPairRDD(sc.sequenceFile(path, keyClass, valueClass, minSplits))
-;;   }
 
-;;   def sequenceFile[K, V](path: String, keyClass: Class[K], valueClass: Class[V]):
-;;   JavaPairRDD[K, V] = {
-;;     implicit val kcm = ClassManifest.fromClass(keyClass)
-;;     implicit val vcm = ClassManifest.fromClass(valueClass)
-;;     new JavaPairRDD(sc.sequenceFile(path, keyClass, valueClass))
-;;   }
+(defn sequence-file
+  "Create a JavaPairRDD from a Hadoop SequenceFile with the given key and value types."
+  ([jsc path key-class value-class min-splits]
+     (.sequenceFile jsc path key-class value-class (int min-splits)))
+  ([jsc path key-class value-class]
+     (.sequenceFile jsc path key-class value-class)))
 
-;;   /**
-;;    * Load an RDD saved as a SequenceFile containing serialized objects, with NullWritable keys and
-;;    * BytesWritable values that contain a serialized partition. This is still an experimental storage
-;;    * format and may not be supported exactly as is in future Spark releases. It will also be pretty
-;;    * slow if you use the default serializer (Java serialization), though the nice thing about it is
-;;    * that there's very little effort required to save arbitrary objects.
-;;    */
-;;   def objectFile[T](path: String, minSplits: Int): JavaRDD[T] = {
-;;     implicit val cm: ClassManifest[T] =
-;;       implicitly[ClassManifest[AnyRef]].asInstanceOf[ClassManifest[T]]
-;;     sc.objectFile(path, minSplits)(cm)
-;;   }
+(defn object-file
+  "Load an RDD saved as a SequenceFile containing serialized objects with NullWritable keys and
+BytesWritable values that contain a serialized partition.  This is still an experimental storage
+format and may not be supported exactly as is in future Spark releases.  It will also be pretty
+slow if you use the default serializer (Java serialization), though the nice thing about it is
+that there's very littl effort required to save arbitrary objects."
+  ([jsc path min-splits]
+     (.objectFile jsc path (int min-splits)))
+  ([jsc path]
+     (.objectFile jsc path)))
 
-;;   def objectFile[T](path: String): JavaRDD[T] = {
-;;     implicit val cm: ClassManifest[T] =
-;;       implicitly[ClassManifest[AnyRef]].asInstanceOf[ClassManifest[T]]
-;;     sc.objectFile(path)(cm)
-;;   }
+(defn hadoop-RDD
+  "Get an RDD for a Hadoop-readable dataset from a Hadoop JobConf giving its InputFormat and any
+other necessary info (e.g. file name for filesystem-based dataset, table name for HyperTable,
+etc.)"
+  ([jsc conf input-format-class key-class value-class min-splits]
+     (.hadoopRDD jsc conf input-format-class key-class value-class (int min-splits)))
+  ([jsc conf input-format-class key-class value-class]
+     (.hadoopRDD jsc conf input-format-class key-class value-class)))
 
-;;   /**
-;;    * Get an RDD for a Hadoop-readable dataset from a Hadooop JobConf giving its InputFormat and any
-;;    * other necessary info (e.g. file name for a filesystem-based dataset, table name for HyperTable,
-;;    * etc).
-;;    */
-;;   def hadoopRDD[K, V, F <: InputFormat[K, V]](
-;;     conf: JobConf,
-;;     inputFormatClass: Class[F],
-;;     keyClass: Class[K],
-;;     valueClass: Class[V],
-;;     minSplits: Int
-;;     ): JavaPairRDD[K, V] = {
-;;     implicit val kcm = ClassManifest.fromClass(keyClass)
-;;     implicit val vcm = ClassManifest.fromClass(valueClass)
-;;     new JavaPairRDD(sc.hadoopRDD(conf, inputFormatClass, keyClass, valueClass, minSplits))
-;;   }
+(defn hadoop-file
+  "Create a JavaPairRDD for a Hadoop-readable dataset from a Hadoop JobConf, giving its InputFormat
+and any other necessary info (e.g. file name for a filesystem-based dataset, table name for
+HyperTable, etc.)"
+  ([jsc path input-format-class key-class value-class min-splits]
+     (.hadoopFile jsc path input-format-class key-class value-class (int min-splits)))
+  ([jsc path input-format-class key-class value-class]
+     (.hadoopFile jsc path input-format-class key-class value-class)))
 
-;;   def hadoopRDD[K, V, F <: InputFormat[K, V]](
-;;     conf: JobConf,
-;;     inputFormatClass: Class[F],
-;;     keyClass: Class[K],
-;;     valueClass: Class[V]
-;;     ): JavaPairRDD[K, V] = {
-;;     implicit val kcm = ClassManifest.fromClass(keyClass)
-;;     implicit val vcm = ClassManifest.fromClass(valueClass)
-;;     new JavaPairRDD(sc.hadoopRDD(conf, inputFormatClass, keyClass, valueClass))
-;;   }
+(defn new-api-hadoop-file [jsc path f-class k-class v-class conf]
+  "Create a JavaPairRDD from a given Hadoop file with an arbitrary new API
+InputFormat and extra configuration options to pass to the input format."
+  (.newAPIHadoopFile jsc path f-class k-class v-class conf))
 
-;;   /**Get an RDD for a Hadoop file with an arbitrary InputFormat */
-;;   def hadoopFile[K, V, F <: InputFormat[K, V]](
-;;     path: String,
-;;     inputFormatClass: Class[F],
-;;     keyClass: Class[K],
-;;     valueClass: Class[V],
-;;     minSplits: Int
-;;     ): JavaPairRDD[K, V] = {
-;;     implicit val kcm = ClassManifest.fromClass(keyClass)
-;;     implicit val vcm = ClassManifest.fromClass(valueClass)
-;;     new JavaPairRDD(sc.hadoopFile(path, inputFormatClass, keyClass, valueClass, minSplits))
-;;   }
-
-;;   def hadoopFile[K, V, F <: InputFormat[K, V]](
-;;     path: String,
-;;     inputFormatClass: Class[F],
-;;     keyClass: Class[K],
-;;     valueClass: Class[V]
-;;     ): JavaPairRDD[K, V] = {
-;;     implicit val kcm = ClassManifest.fromClass(keyClass)
-;;     implicit val vcm = ClassManifest.fromClass(valueClass)
-;;     new JavaPairRDD(sc.hadoopFile(path,
-;;       inputFormatClass, keyClass, valueClass))
-;;   }
-
-;;   /**
-;;    * Get an RDD for a given Hadoop file with an arbitrary new API InputFormat
-;;    * and extra configuration options to pass to the input format.
-;;    */
-;;   def newAPIHadoopFile[K, V, F <: NewInputFormat[K, V]](
-;;     path: String,
-;;     fClass: Class[F],
-;;     kClass: Class[K],
-;;     vClass: Class[V],
-;;     conf: Configuration): JavaPairRDD[K, V] = {
-;;     implicit val kcm = ClassManifest.fromClass(kClass)
-;;     implicit val vcm = ClassManifest.fromClass(vClass)
-;;     new JavaPairRDD(sc.newAPIHadoopFile(path, fClass, kClass, vClass, conf))
-;;   }
-
-;;   /**
-;;    * Get an RDD for a given Hadoop file with an arbitrary new API InputFormat
-;;    * and extra configuration options to pass to the input format.
-;;    */
-;;   def newAPIHadoopRDD[K, V, F <: NewInputFormat[K, V]](
-;;     conf: Configuration,
-;;     fClass: Class[F],
-;;     kClass: Class[K],
-;;     vClass: Class[V]): JavaPairRDD[K, V] = {
-;;     implicit val kcm = ClassManifest.fromClass(kClass)
-;;     implicit val vcm = ClassManifest.fromClass(vClass)
-;;     new JavaPairRDD(sc.newAPIHadoopRDD(conf, fClass, kClass, vClass))
-;;   }
-
-;;   override def union[T](first: JavaRDD[T], rest: java.util.List[JavaRDD[T]]): JavaRDD[T] = {
-;;     val rdds: Seq[RDD[T]] = (Seq(first) ++ asScalaBuffer(rest)).map(_.rdd)
-;;     implicit val cm: ClassManifest[T] = first.classManifest
-;;     sc.union(rdds)(cm)
-;;   }
+(defn new-api-hadoop-RDD [jsc conf f-class k-class v-class]
+  "Create a JavaPairRDD from a given Hadoop file with an arbitrary new API
+InputFormat and extra configuration options to pass to the input format."
+  (.newAPIHadoopRDD jsc conf f-class k-class v-class))
 
 (defn union [rdd & rdds]
   "Union of RDDs"
@@ -207,59 +116,31 @@
       (.union (JavaSparkContext/fromSparkContext (.context rdd)) rdd (java.util.ArrayList. (first rdds)))
       (.union (JavaSparkContext/fromSparkContext (.context rdd)) rdd (java.util.ArrayList. rdds)))))
 
-;;   override def union[K, V](first: JavaPairRDD[K, V], rest: java.util.List[JavaPairRDD[K, V]])
-;;       : JavaPairRDD[K, V] = {
-;;     val rdds: Seq[RDD[(K, V)]] = (Seq(first) ++ asScalaBuffer(rest)).map(_.rdd)
-;;     implicit val cm: ClassManifest[(K, V)] = first.classManifest
-;;     implicit val kcm: ClassManifest[K] = first.kManifest
-;;     implicit val vcm: ClassManifest[V] = first.vManifest
-;;     new JavaPairRDD(sc.union(rdds)(cm))(kcm, vcm)
-;;   }
-
-;;   override def union(first: JavaDoubleRDD, rest: java.util.List[JavaDoubleRDD]): JavaDoubleRDD = {
-;;     val rdds: Seq[RDD[Double]] = (Seq(first) ++ asScalaBuffer(rest)).map(_.srdd)
-;;     new JavaDoubleRDD(sc.union(rdds))
-;;   }
-
-;;   def intAccumulator(initialValue: Int): Accumulator[Int] =
-;;     sc.accumulator(initialValue)(IntAccumulatorParam)
 (defn int-accumulator [jsc initial-value]
   (.intAccumulator jsc initial-value))
 
-;;   def doubleAccumulator(initialValue: Double): Accumulator[Double] =
-;;     sc.accumulator(initialValue)(DoubleAccumulatorParam)
 (defn double-accumulator [jsc initial-value]
   (.doubleAccumulator jsc initial-value))
 
 ;;   def accumulator[T](initialValue: T, accumulatorParam: AccumulatorParam[T]): Accumulator[T] =
 ;;     sc.accumulator(initialValue)(accumulatorParam)
 
-;;   def broadcast[T](value: T): Broadcast[T] = sc.broadcast(value)
 (defn broadcast [value jsc]
   (.broadcast (.sc jsc) value))
 
-;;   def stop() {
-;;     sc.stop()
-;;   }
 (defn stop [jsc]
   (.stop jsc))
 
-;;   def getSparkHome(): Option[String] = sc.getSparkHome()
-;; }
 (defn get-spark-home [jsc]
   (let [opt (.getSparkHome jsc)]
     (if (.isEmpty opt)
       nil
       (.get opt))))
 
-;; object JavaSparkContext {
-;;   implicit def fromSparkContext(sc: SparkContext): JavaSparkContext = new JavaSparkContext(sc)
 (defn from-spark-context [sc]
   "Create JavaSparkContext from a SparkContext"
   (JavaSparkContext. sc))
 
-;;   implicit def toSparkContext(jsc: JavaSparkContext): SparkContext = jsc.sc
-;; }
 (defn to-spark-context [jsc]
   "Get the SparkContext from a JavaSparkContext"
   (.sc jsc))
