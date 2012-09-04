@@ -2,16 +2,14 @@ package spark.storage
 
 import java.io._
 import java.nio._
-import java.nio.channels.FileChannel.MapMode
-import java.util.{HashMap => JHashMap}
-import java.util.LinkedHashMap
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.Collections
 
 import akka.dispatch.{Await, Future}
 import scala.collection.mutable.ArrayBuffer
-import scala.collection.mutable.HashMap
+import scala.collection.mutable.{HashMap, HashSet}
+import scala.collection.mutable.Queue
 import scala.collection.JavaConversions._
 
 import it.unimi.dsi.fastutil.io._
@@ -84,6 +82,8 @@ class BlockManager(val master: BlockManagerMaster, val serializer: Serializer, m
   
   // TODO: This will be removed after cacheTracker is removed from the code base.
   var cacheTracker: CacheTracker = null
+
+  val numParallelFetches = BlockManager.getNumParallelFetchesFromSystemProperties()
 
   initLogging()
 
@@ -273,35 +273,25 @@ class BlockManager(val master: BlockManagerMaster, val serializer: Serializer, m
     logDebug("Getting " + totalBlocks + " blocks")
     var startTime = System.currentTimeMillis
     val localBlockIds = new ArrayBuffer[String]()
-    val remoteBlockIds = new ArrayBuffer[String]()
-    val remoteBlockIdsPerLocation = new HashMap[BlockManagerId, Seq[String]]()
+    val remoteBlockIds = new HashSet[String]()
 
     // A queue to hold our results. Because we want all the deserializing the happen in the
     // caller's thread, this will actually hold functions to produce the Iterator for each block.
     // For local blocks we'll have an iterator already, while for remote ones we'll deserialize.
     val results = new LinkedBlockingQueue[(String, Option[() => Iterator[Any]])]
 
-    // Split local and remote blocks
-    for ((address, blockIds) <- blocksByAddress) {
-      if (address == blockManagerId) {
-        localBlockIds ++= blockIds
-      } else {
-        remoteBlockIds ++= blockIds
-        remoteBlockIdsPerLocation(address) = blockIds
-      }
-    }
-    
-    // Start getting remote blocks
-    for ((bmId, bIds) <- remoteBlockIdsPerLocation) {
-      val cmId = ConnectionManagerId(bmId.ip, bmId.port)
-      val blockMessages = bIds.map(bId => BlockMessage.fromGetBlock(GetBlock(bId)))
+    // Bound the number and memory usage of fetched remote blocks.
+    val blocksToRequest = new Queue[(BlockManagerId, BlockMessage)]
+
+    def sendRequest(bmId: BlockManagerId, blockMessages: Seq[BlockMessage]) {
+      val cmId = new ConnectionManagerId(bmId.ip, bmId.port)
       val blockMessageArray = new BlockMessageArray(blockMessages)
       val future = connectionManager.sendMessageReliably(cmId, blockMessageArray.toBufferMessage)
       future.onSuccess {
         case Some(message) => {
           val bufferMessage = message.asInstanceOf[BufferMessage]
           val blockMessageArray = BlockMessageArray.fromBufferMessage(bufferMessage)
-          blockMessageArray.foreach(blockMessage => {
+          for (blockMessage <- blockMessageArray) {
             if (blockMessage.getType != BlockMessage.TYPE_GOT_BLOCK) {
               throw new SparkException(
                 "Unexpected message " + blockMessage.getType + " received from " + cmId)
@@ -309,22 +299,50 @@ class BlockManager(val master: BlockManagerMaster, val serializer: Serializer, m
             val blockId = blockMessage.getId
             results.put((blockId, Some(() => dataDeserialize(blockMessage.getData))))
             logDebug("Got remote block " + blockId + " after " + Utils.getUsedTimeMs(startTime))
-          })
+          }
         }
         case None => {
-          logError("Could not get blocks from " + cmId)
-          for (blockId <- bIds) {
-            results.put((blockId, None))
+          logError("Could not get block(s) from " + cmId)
+          for (blockMessage <- blockMessages) {
+            results.put((blockMessage.getId, None))
           }
         }
       }
     }
-    logDebug("Started remote gets for " + remoteBlockIds.size + " blocks in " + 
+
+    // Split local and remote blocks. Remote blocks are further split into ones that will
+    // be requested initially and ones that will be added to a queue of blocks to request.
+    val initialRequestBlocks = new HashMap[BlockManagerId, ArrayBuffer[BlockMessage]]()
+    var initialRequests = 0
+    for ((address, blockIds) <- blocksByAddress) {
+      if (address == blockManagerId) {
+        localBlockIds ++= blockIds
+      } else {
+        remoteBlockIds ++= blockIds
+        for (blockId <- blockIds) {
+          val blockMessage = BlockMessage.fromGetBlock(GetBlock(blockId))
+          if (initialRequests < numParallelFetches) {
+            initialRequestBlocks.getOrElseUpdate(address, new ArrayBuffer[BlockMessage])
+              .append(blockMessage)
+            initialRequests += 1
+          } else {
+            blocksToRequest.enqueue((address, blockMessage))
+          }
+        }
+      }
+    }
+
+    // Send out initial request(s) for 'numParallelFetches' blocks.
+    for ((bmId, blockMessages) <- initialRequestBlocks) {
+      sendRequest(bmId, blockMessages)
+    }
+
+    logDebug("Started remote gets for " + numParallelFetches + " blocks in " +
       Utils.getUsedTimeMs(startTime) + " ms")
 
-    // Get the local blocks while remote blocks are being fetched
+    // Get the local blocks while remote blocks are being fetched.
     startTime = System.currentTimeMillis
-    localBlockIds.foreach(id => {
+    for (id <- localBlockIds) {
       getLocal(id) match {
         case Some(block) => {
           results.put((id, Some(() => block)))
@@ -334,10 +352,10 @@ class BlockManager(val master: BlockManagerMaster, val serializer: Serializer, m
           throw new BlockException(id, "Could not get block " + id + " from local machine")
         }
       }
-    }) 
+    }
     logDebug("Got local blocks in " + Utils.getUsedTimeMs(startTime) + " ms")
 
-    // Return an iterator that will read fetched blocks off the queue as they arrive
+    // Return an iterator that will read fetched blocks off the queue as they arrive.
     return new Iterator[(String, Option[Iterator[Any]])] {
       var resultsGotten = 0
 
@@ -346,6 +364,10 @@ class BlockManager(val master: BlockManagerMaster, val serializer: Serializer, m
       def next(): (String, Option[Iterator[Any]]) = {
         resultsGotten += 1
         val (blockId, functionOption) = results.take()
+        if (remoteBlockIds.contains(blockId) && !blocksToRequest.isEmpty) {
+          val (bmId, blockMessage) = blocksToRequest.dequeue()
+          sendRequest(bmId, Seq(blockMessage))
+        }
         (blockId, functionOption.map(_.apply()))
       }
     }
@@ -598,6 +620,11 @@ class BlockManager(val master: BlockManagerMaster, val serializer: Serializer, m
 }
 
 object BlockManager {
+
+  def getNumParallelFetchesFromSystemProperties(): Int = {
+    System.getProperty("spark.blockManager.parallelFetches", "8").toInt
+  }
+
   def getMaxMemoryFromSystemProperties(): Long = {
     val memoryFraction = System.getProperty("spark.storage.memoryFraction", "0.66").toDouble
     (Runtime.getRuntime.maxMemory * memoryFraction).toLong
