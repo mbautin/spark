@@ -131,30 +131,29 @@ InputFormat and extra configuration options to pass to the input format."
         nil
         (.get opt))))
 
-  (defn to-spark-context []
-    "Get the SparkContext from a JavaSparkContext"
+  (defn get-spark-context []
+    "Get the SparkContext from the current JavaSparkContext"
     (.sc @jsc))
 
   )
-
-
-
 
 (defn union [rdd & rdds]
   "Union of RDDs"
   (if (nil? rdds)
     (.union (JavaSparkContext/fromSparkContext (.context (first rdd))) (first rdd) (ArrayList. (rest rdd)))
-    (if (coll? (first rdds))
-      (.union (JavaSparkContext/fromSparkContext (.context rdd)) rdd (ArrayList. (first rdds)))
-      (.union (JavaSparkContext/fromSparkContext (.context rdd)) rdd (ArrayList. rdds)))))
-
+    (.union (JavaSparkContext/fromSparkContext (.context rdd)) rdd (ArrayList. (flatten rdds)))))
 
 (defn from-spark-context [sc]
   "Create JavaSparkContext from a SparkContext"
   (JavaSparkContext. sc))
 
+(defn- arg-count [f]
+  (let [m (first (.getDeclaredMethods (class f)))
+        p (.getParameterTypes m)]
+    (alength p)))
 
 (let [factory (spark.api.clojure.FunctionFactory.)]
   (defn spark-function [f]
     "Create a spark.api.java.function.Function from a clojure function"
     (.sparkFunc factory f)))
+
