@@ -98,14 +98,16 @@ HyperTable, etc.)"
     ([path input-format-class key-class value-class]
        (.hadoopFile @jsc path input-format-class key-class value-class)))
 
-  (defn new-api-hadoop-file [path f-class k-class v-class conf]
+  (defn new-api-hadoop-file
     "Create a JavaPairRDD from a given Hadoop file with an arbitrary new API
 InputFormat and extra configuration options to pass to the input format."
+    [path f-class k-class v-class conf]
     (.newAPIHadoopFile @jsc path f-class k-class v-class conf))
 
-  (defn new-api-hadoop-RDD [conf f-class k-class v-class]
+  (defn new-api-hadoop-RDD
     "Create a JavaPairRDD from a given Hadoop file with an arbitrary new API
 InputFormat and extra configuration options to pass to the input format."
+    [conf f-class k-class v-class]
     (.newAPIHadoopRDD @jsc conf f-class k-class v-class))
 
   (defn int-accumulator [initial-value]
@@ -131,20 +133,23 @@ InputFormat and extra configuration options to pass to the input format."
         nil
         (.get opt))))
 
-  (defn get-spark-context []
+  (defn get-spark-context
     "Get the SparkContext from the current JavaSparkContext"
+    []
     (.sc @jsc))
 
   )
 
-(defn union [rdd & rdds]
+(defn union
   "Union of RDDs"
+  [rdd & rdds]
   (if (nil? rdds)
     (.union (JavaSparkContext/fromSparkContext (.context (first rdd))) (first rdd) (ArrayList. (rest rdd)))
     (.union (JavaSparkContext/fromSparkContext (.context rdd)) rdd (ArrayList. (flatten rdds)))))
 
-(defn from-spark-context [sc]
+(defn from-spark-context
   "Create JavaSparkContext from a SparkContext"
+  [sc]
   (JavaSparkContext. sc))
 
 (defn- arg-count [f]
@@ -157,3 +162,11 @@ InputFormat and extra configuration options to pass to the input format."
     "Create a spark.api.java.function.Function from a clojure function"
     (.sparkFunc factory f)))
 
+(defn map [f rdd]
+  (.map rdd (spark-function f)))
+
+(defn collect [rdd]
+  (.collect rdd))
+
+(defn take [n rdd]
+  (.take rdd n))
