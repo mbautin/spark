@@ -4,7 +4,7 @@
   (:import (spark AccumulatorParam))
   (:use (spark.api.clojure FunctionFactory)))
 
-(defn spark-context
+(defn- spark-context
   "Create a new Spark context."
   ([sc] ;; Scala SparkContext
      (JavaSparkContext. sc))
@@ -16,83 +16,129 @@
        (if (and (= 1 (count jars)) (coll? (first jars)))
          (JavaSparkContext. master framework-name spark-home (to-array jars))))))
 
-;;   val env = sc.env
-(defn env [jsc]
-  (.env (.sc jsc)))
+(let [jsc (ref nil)]
 
-(defn parallelize
-  "Parallelize a collection into a JavaRDD"
-  ([jsc coll ^Integer num-slices]
-     (.parallelize jsc (ArrayList. coll) num-slices))
-  ([jsc coll]
-     (.parallelize jsc (ArrayList. coll))))
+  (defn set-spark-context!
+  "Set the Spark context."
+  ([sc] ;; Scala SparkContext
+     (dosync
+      (ref-set jsc (spark-context sc))))
+  ([^String master ^String framework-name]
+     (dosync
+      (ref-set jsc (spark-context master framework-name))))
+  ([^String master ^String framework-name ^String spark-home & jars]
+     (dosync
+      (ref-set jsc (spark-context master framework-name spark-home jars)))))
 
-(defn parallelize-pairs
+  ;;   val env = sc.env
+  (defn env []
+    (.env (.sc @jsc)))
+
+  (defn parallelize
+    "Parallelize a collection into a JavaRDD"
+    ([coll ^Integer num-slices]
+       (.parallelize @jsc (ArrayList. coll) num-slices))
+    ([coll]
+       (.parallelize @jsc (ArrayList. coll))))
+
+  (defn parallelize-pairs
   "Parallelize a collection of scala.Tuple2 into a JavaPairRDD"
   ([jsc pairs num-slices]
      (.parallelizePairs jsc (java.util.ArrayList pairs) num-slices))
   ([jsc pairs]
      (.parallelizePairs jsc (ArrayList. pairs))))
 
-(defn parallelize-doubles
-  "Parallelize a collection of Doubles into a JavaDoubleRDD"
-  ([jsc ^doubles dbls ^Integer num-slices]
-     (.parallelizeDoubles jsc (ArrayList. dbls) num-slices))
-  ([jsc ^doubles dbls]
-     (.parallelizeDoubles jsc (ArrayList. dbls))))
+  (defn parallelize-doubles
+    "Parallelize a collection of Doubles into a JavaDoubleRDD"
+    ([^doubles dbls ^Integer num-slices]
+       (.parallelizeDoubles @jsc (ArrayList. dbls) num-slices))
+    ([^doubles dbls]
+       (.parallelizeDoubles @jsc (ArrayList. dbls))))
 
-(defn text-file
-  "Create an RDD from a text file."
-  ([jsc ^String path min-splits]
-     (.textFile jsc path (int min-splits)))
-  ([jsc ^String path]
-     (.textFile jsc path)))
+  (defn text-file
+    "Create an RDD from a text file."
+    ([^String path min-splits]
+       (.textFile @jsc path (int min-splits)))
+    ([^String path]
+       (.textFile @jsc path)))
 
-(defn sequence-file
-  "Create a JavaPairRDD from a Hadoop SequenceFile with the given key and value types."
-  ([jsc path key-class value-class min-splits]
-     (.sequenceFile jsc path key-class value-class (int min-splits)))
-  ([jsc path key-class value-class]
-     (.sequenceFile jsc path key-class value-class)))
+  (defn sequence-file
+    "Create a JavaPairRDD from a Hadoop SequenceFile with the given key and value types."
+    ([path key-class value-class min-splits]
+       (.sequenceFile @jsc path key-class value-class (int min-splits)))
+    ([path key-class value-class]
+       (.sequenceFile @jsc path key-class value-class)))
 
-(defn object-file
-  "Load an RDD saved as a SequenceFile containing serialized objects with NullWritable keys and
+  (defn object-file
+    "Load an RDD saved as a SequenceFile containing serialized objects with NullWritable keys and
 BytesWritable values that contain a serialized partition.  This is still an experimental storage
 format and may not be supported exactly as is in future Spark releases.  It will also be pretty
 slow if you use the default serializer (Java serialization), though the nice thing about it is
 that there's very littl effort required to save arbitrary objects."
-  ([jsc path min-splits]
-     (.objectFile jsc path (int min-splits)))
-  ([jsc path]
-     (.objectFile jsc path)))
+    ([path min-splits]
+       (.objectFile @jsc path (int min-splits)))
+    ([path]
+       (.objectFile @jsc path)))
 
-(defn hadoop-RDD
-  "Get an RDD for a Hadoop-readable dataset from a Hadoop JobConf giving its InputFormat and any
+  (defn hadoop-RDD
+    "Get an RDD for a Hadoop-readable dataset from a Hadoop JobConf giving its InputFormat and any
 other necessary info (e.g. file name for filesystem-based dataset, table name for HyperTable,
 etc.)"
-  ([jsc conf input-format-class key-class value-class min-splits]
-     (.hadoopRDD jsc conf input-format-class key-class value-class (int min-splits)))
-  ([jsc conf input-format-class key-class value-class]
-     (.hadoopRDD jsc conf input-format-class key-class value-class)))
+    ([conf input-format-class key-class value-class min-splits]
+       (.hadoopRDD @jsc conf input-format-class key-class value-class (int min-splits)))
+    ([conf input-format-class key-class value-class]
+       (.hadoopRDD @jsc conf input-format-class key-class value-class)))
 
-(defn hadoop-file
-  "Create a JavaPairRDD for a Hadoop-readable dataset from a Hadoop JobConf, giving its InputFormat
+  (defn hadoop-file
+    "Create a JavaPairRDD for a Hadoop-readable dataset from a Hadoop JobConf, giving its InputFormat
 and any other necessary info (e.g. file name for a filesystem-based dataset, table name for
 HyperTable, etc.)"
-  ([jsc path input-format-class key-class value-class min-splits]
-     (.hadoopFile jsc path input-format-class key-class value-class (int min-splits)))
-  ([jsc path input-format-class key-class value-class]
-     (.hadoopFile jsc path input-format-class key-class value-class)))
+    ([path input-format-class key-class value-class min-splits]
+       (.hadoopFile @jsc path input-format-class key-class value-class (int min-splits)))
+    ([path input-format-class key-class value-class]
+       (.hadoopFile @jsc path input-format-class key-class value-class)))
 
-(defn new-api-hadoop-file [jsc path f-class k-class v-class conf]
-  "Create a JavaPairRDD from a given Hadoop file with an arbitrary new API
+  (defn new-api-hadoop-file [path f-class k-class v-class conf]
+    "Create a JavaPairRDD from a given Hadoop file with an arbitrary new API
 InputFormat and extra configuration options to pass to the input format."
-  (.newAPIHadoopFile jsc path f-class k-class v-class conf))
+    (.newAPIHadoopFile @jsc path f-class k-class v-class conf))
 
-(defn new-api-hadoop-RDD [jsc conf f-class k-class v-class]
-  "Create a JavaPairRDD from a given Hadoop file with an arbitrary new API
+  (defn new-api-hadoop-RDD [conf f-class k-class v-class]
+    "Create a JavaPairRDD from a given Hadoop file with an arbitrary new API
 InputFormat and extra configuration options to pass to the input format."
-  (.newAPIHadoopRDD jsc conf f-class k-class v-class))
+    (.newAPIHadoopRDD @jsc conf f-class k-class v-class))
+
+  (defn int-accumulator [initial-value]
+    (.intAccumulator @jsc initial-value))
+
+  (defn double-accumulator [initial-value]
+    (.doubleAccumulator @jsc initial-value))
+
+  (defn accumulator [initial-value accumulator-param]
+    (.accumulator @jsc initial-value accumulator-param))
+
+  (defn broadcast [value]
+    (.broadcast (.sc @jsc) value))
+
+  (defn stop-spark-context! []
+    (dosync
+     (.stop @jsc)
+     (ref-set jsc nil)))
+
+  (defn get-spark-home []
+    (let [opt (.getSparkHome @jsc)]
+      (if (.isEmpty opt)
+        nil
+        (.get opt))))
+
+  (defn to-spark-context []
+    "Get the SparkContext from a JavaSparkContext"
+    (.sc @jsc))
+
+  )
+
+
+
 
 (defn union [rdd & rdds]
   "Union of RDDs"
@@ -102,35 +148,13 @@ InputFormat and extra configuration options to pass to the input format."
       (.union (JavaSparkContext/fromSparkContext (.context rdd)) rdd (ArrayList. (first rdds)))
       (.union (JavaSparkContext/fromSparkContext (.context rdd)) rdd (ArrayList. rdds)))))
 
-(defn int-accumulator [jsc initial-value]
-  (.intAccumulator jsc initial-value))
-
-(defn double-accumulator [jsc initial-value]
-  (.doubleAccumulator jsc initial-value))
-
-(defn accumulator [jsc initial-value accumulator-param]
-  (.accumulator jsc initial-value accumulator-param))
-
-(defn broadcast [value jsc]
-  (.broadcast (.sc jsc) value))
-
-(defn stop [jsc]
-  (.stop jsc))
-
-(defn get-spark-home [jsc]
-  (let [opt (.getSparkHome jsc)]
-    (if (.isEmpty opt)
-      nil
-      (.get opt))))
 
 (defn from-spark-context [sc]
   "Create JavaSparkContext from a SparkContext"
   (JavaSparkContext. sc))
 
-(defn to-spark-context [jsc]
-  "Get the SparkContext from a JavaSparkContext"
-  (.sc jsc))
 
-(defn spark-function [f]
-  "Create a spark.api.java.function.Function from a clojure function"
-  (.sparkFunc (spark.api.clojure.FunctionFactory.) f))
+(let [factory (spark.api.clojure.FunctionFactory.)]
+  (defn spark-function [f]
+    "Create a spark.api.java.function.Function from a clojure function"
+    (.sparkFunc factory f)))
