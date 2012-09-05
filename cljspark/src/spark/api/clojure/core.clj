@@ -1,22 +1,8 @@
-;; package spark.api.java
-(ns spark.api
-  (:import (spark.api.java JavaSparkContext)))
-
-;; import spark.{Accumulator, AccumulatorParam, RDD, SparkContext}
-;; import spark.SparkContext.IntAccumulatorParam
-;; import spark.SparkContext.DoubleAccumulatorParam
-;; import spark.broadcast.Broadcast
-
-;; import scala.collection.JavaConversions._
-
-;; import org.apache.hadoop.conf.Configuration
-;; import org.apache.hadoop.mapred.InputFormat
-;; import org.apache.hadoop.mapred.JobConf
-
-;; import org.apache.hadoop.mapreduce.{InputFormat => NewInputFormat}
-
-
-;; import scala.collection.JavaConversions
+(ns spark.api.clojure.core
+  (:import (java.util ArrayList))
+  (:import (spark.api.java JavaSparkContext))
+  (:import (spark AccumulatorParam))
+  (:use (spark.api.clojure FunctionFactory)))
 
 (defn spark-context
   "Create a new Spark context."
@@ -37,23 +23,23 @@
 (defn parallelize
   "Parallelize a collection into a JavaRDD"
   ([jsc coll ^Integer num-slices]
-     (.parallelize jsc (java.util.ArrayList. coll) num-slices))
+     (.parallelize jsc (ArrayList. coll) num-slices))
   ([jsc coll]
-     (.parallelize jsc (java.util.ArrayList. coll))))
+     (.parallelize jsc (ArrayList. coll))))
 
 (defn parallelize-pairs
   "Parallelize a collection of scala.Tuple2 into a JavaPairRDD"
   ([jsc pairs num-slices]
      (.parallelizePairs jsc (java.util.ArrayList pairs) num-slices))
   ([jsc pairs]
-     (.parallelizePairs jsc (java.util.ArrayList. pairs))))
+     (.parallelizePairs jsc (ArrayList. pairs))))
 
 (defn parallelize-doubles
   "Parallelize a collection of Doubles into a JavaDoubleRDD"
   ([jsc ^doubles dbls ^Integer num-slices]
-     (.parallelizeDoubles jsc (java.util.ArrayList. dbls) num-slices))
+     (.parallelizeDoubles jsc (ArrayList. dbls) num-slices))
   ([jsc ^doubles dbls]
-     (.parallelizeDoubles jsc (java.util.ArrayList. dbls))))
+     (.parallelizeDoubles jsc (ArrayList. dbls))))
 
 (defn text-file
   "Create an RDD from a text file."
@@ -111,10 +97,10 @@ InputFormat and extra configuration options to pass to the input format."
 (defn union [rdd & rdds]
   "Union of RDDs"
   (if (nil? rdds)
-    (.union (JavaSparkContext/fromSparkContext (.context (first rdd))) (first rdd) (java.util.ArrayList. (rest rdd)))
+    (.union (JavaSparkContext/fromSparkContext (.context (first rdd))) (first rdd) (ArrayList. (rest rdd)))
     (if (coll? (first rdds))
-      (.union (JavaSparkContext/fromSparkContext (.context rdd)) rdd (java.util.ArrayList. (first rdds)))
-      (.union (JavaSparkContext/fromSparkContext (.context rdd)) rdd (java.util.ArrayList. rdds)))))
+      (.union (JavaSparkContext/fromSparkContext (.context rdd)) rdd (ArrayList. (first rdds)))
+      (.union (JavaSparkContext/fromSparkContext (.context rdd)) rdd (ArrayList. rdds)))))
 
 (defn int-accumulator [jsc initial-value]
   (.intAccumulator jsc initial-value))
@@ -122,8 +108,8 @@ InputFormat and extra configuration options to pass to the input format."
 (defn double-accumulator [jsc initial-value]
   (.doubleAccumulator jsc initial-value))
 
-;;   def accumulator[T](initialValue: T, accumulatorParam: AccumulatorParam[T]): Accumulator[T] =
-;;     sc.accumulator(initialValue)(accumulatorParam)
+(defn accumulator [jsc initial-value accumulator-param]
+  (.accumulator jsc initial-value accumulator-param))
 
 (defn broadcast [value jsc]
   (.broadcast (.sc jsc) value))
@@ -144,3 +130,7 @@ InputFormat and extra configuration options to pass to the input format."
 (defn to-spark-context [jsc]
   "Get the SparkContext from a JavaSparkContext"
   (.sc jsc))
+
+(defn spark-function [f]
+  "Create a spark.api.java.function.Function from a clojure function"
+  (.sparkFunc (spark.api.clojure.FunctionFactory.) f))
