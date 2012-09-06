@@ -162,18 +162,32 @@ InputFormat and extra configuration options to pass to the input format."
   (defn spark-function
     "Create a spark.api.java.function.Function from a clojure function"
     [f]
-    (.sparkFunc factory f)))
+    (.sparkFunction factory f))
+  (defn spark-function2
+    "Create a spark.api.java.function.Function2 from a clojure function"
+    [f]
+    (.sparkFunction2 factory f))
+  (defn spark-flat-map-function
+    "Create a spark.api.java.function.FlatMapFunction from a clojure function"
+    [f]
+    (.sparkFlatMapFunction factory f)))
 
-(defn map [f rdd]
+(defn spark-map [f rdd]
   (.map rdd (spark-function f)))
 
-(defn filter [f rdd]
+(defn flat-map [f rdd]
+  (.flatMap rdd (spark-flat-map-function f)))
+
+(defn spark-reduce [f rdd]
+  (.reduce rdd (spark-function2 f)))
+
+(defn spark-filter [f rdd]
   (.filter rdd (spark-function f)))
 
 (defn collect [rdd]
   (.collect rdd))
 
-(defn take [n rdd]
+(defn spark-take [n rdd]
   (.take rdd n))
 
 (defn cache [rdd]
@@ -182,13 +196,13 @@ InputFormat and extra configuration options to pass to the input format."
 (defn persist [new-level rdd]
   (.persist rdd new-level))
 
-(defn distinct [rdd]
+(defn spark-distinct [rdd]
   (.distinct rdd))
 
 (defn sample [with-replacement fraction seed rdd]
   (.sample rdd (boolean with-replacement) (double fraction) (int seed)))
 
-(defn count [rdd]
+(defn spark-count [rdd]
   (.count rdd))
 
 (defn count-approx
@@ -200,10 +214,10 @@ InputFormat and extra configuration options to pass to the input format."
 (defn count-by-value [rdd]
   (.countByValue rdd))
 
-(defn first [rdd]
+(defn spark-first [rdd]
   (.first rdd))
 
-(defn rdd [rdd]
+(defn get-rdd [rdd]
   (.rdd rdd))
 
 (defn context [rdd]
