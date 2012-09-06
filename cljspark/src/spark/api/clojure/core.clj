@@ -187,3 +187,33 @@ InputFormat and extra configuration options to pass to the input format."
 
 (defn sample [with-replacement fraction seed rdd]
   (.sample rdd (boolean with-replacement) (double fraction) (int seed)))
+
+(defn count [rdd]
+  (.count rdd))
+
+(defn count-approx
+  ([timeout rdd]
+     (.countApprox rdd timeout))
+  ([timeout confidence rdd]
+     (.countApprox rdd timeout (double confidence))))
+
+(defn count-by-value [rdd]
+  (.countByValue rdd))
+
+(defn first [rdd]
+  (.first rdd))
+
+(defn rdd [rdd]
+  (.rdd rdd))
+
+(defn context [rdd]
+  (.context rdd))
+
+(defn id [rdd]
+  (.id rdd))
+
+(defn get-storage-level [rdd]
+  (.getStorageLevel rdd))
+
+(defn splits [rdd]
+  (.splits rdd))
