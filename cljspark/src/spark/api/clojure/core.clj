@@ -191,6 +191,9 @@ InputFormat and extra configuration options to pass to the input format."
 (defn spark-reduce [f rdd]
   (.reduce rdd (spark-function2 f)))
 
+(defn reduce-by-key [f rdd]
+  (.reduceByKey rdd (spark-function2 f)))
+
 (defn spark-filter [f rdd]
   (.filter rdd (spark-function f)))
 
