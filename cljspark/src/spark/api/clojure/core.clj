@@ -16,6 +16,7 @@
        (if (and (= 1 (count jars)) (coll? (first jars)))
          (JavaSparkContext. master framework-name spark-home (to-array jars))))))
 
+
 (let [jsc (ref nil)]
 
   (defn set-spark-context!
@@ -158,15 +159,31 @@ InputFormat and extra configuration options to pass to the input format."
     (alength p)))
 
 (let [factory (spark.api.clojure.FunctionFactory.)]
-  (defn spark-function [f]
+  (defn spark-function
     "Create a spark.api.java.function.Function from a clojure function"
+    [f]
     (.sparkFunc factory f)))
 
 (defn map [f rdd]
   (.map rdd (spark-function f)))
+
+(defn filter [f rdd]
+  (.filter rdd (spark-function f)))
 
 (defn collect [rdd]
   (.collect rdd))
 
 (defn take [n rdd]
   (.take rdd n))
+
+(defn cache [rdd]
+  (.cache rdd))
+
+(defn persist [new-level rdd]
+  (.persist rdd new-level))
+
+(defn distinct [rdd]
+  (.distinct rdd))
+
+(defn sample [with-replacement fraction seed rdd]
+  (.sample rdd (boolean with-replacement) (double fraction) (int seed)))
