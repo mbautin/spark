@@ -1,10 +1,12 @@
 (ns spark.api.clojure.FunctionFactory
-  (:import (spark.api.java.function Function FlatMapFunction Function2))
+  (:import (spark.api.java.function Function FlatMapFunction Function2 PairFunction)
+           (scala Tuple2))
   (:gen-class
    :name spark.api.clojure.FunctionFactory
    :methods [[sparkFunction [clojure.lang.IFn] spark.api.java.function.Function]
              [sparkFlatMapFunction [clojure.lang.IFn] spark.api.java.function.FlatMapFunction]
-             [sparkFunction2 [clojure.lang.IFn] spark.api.java.function.Function2]]))
+             [sparkFunction2 [clojure.lang.IFn] spark.api.java.function.Function2]
+             [sparkPairFunction [clojure.lang.IFn] spark.api.java.function.PairFunction]]))
 
 (defn -sparkFunction [_ f]
   (proxy [Function] []
@@ -17,3 +19,8 @@
 (defn -sparkFunction2 [_ f]
   (proxy [Function2] []
     (call [a b] (f a b))))
+
+(defn -sparkPairFunction [_ f]
+  (proxy [PairFunction] []
+    (call [a] (let [pair (f a)]
+                (Tuple2. (first pair) (second pair))))))
