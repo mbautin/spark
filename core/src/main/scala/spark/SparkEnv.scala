@@ -1,6 +1,8 @@
 package spark
 
 import akka.actor.ActorSystem
+import akka.actor.ActorSystemImpl
+import akka.remote.RemoteActorRefProvider
 
 import spark.broadcast.BroadcastManager
 import spark.storage.BlockManager
@@ -19,15 +21,17 @@ class SparkEnv (
     val shuffleManager: ShuffleManager,
     val broadcastManager: BroadcastManager,
     val blockManager: BlockManager,
-    val connectionManager: ConnectionManager
+    val connectionManager: ConnectionManager,
+    val httpFileServer: HttpFileServer
   ) {
 
   /** No-parameter constructor for unit tests. */
   def this() = {
-    this(null, null, new JavaSerializer, new JavaSerializer, null, null, null, null, null, null, null)
+    this(null, null, new JavaSerializer, new JavaSerializer, null, null, null, null, null, null, null, null)
   }
 
   def stop() {
+    httpFileServer.stop()
     mapOutputTracker.stop()
     cacheTracker.stop()
     shuffleFetcher.stop()
@@ -37,6 +41,8 @@ class SparkEnv (
     blockManager.master.stop()
     actorSystem.shutdown()
     actorSystem.awaitTermination()
+    // Akka's awaitTermination doesn't actually wait until the port is unbound, so sleep a bit
+    Thread.sleep(100)
   }
 }
 
@@ -95,7 +101,11 @@ object SparkEnv {
       System.getProperty("spark.shuffle.fetcher", "spark.BlockStoreShuffleFetcher")
     val shuffleFetcher = 
       Class.forName(shuffleFetcherClass).newInstance().asInstanceOf[ShuffleFetcher]
-
+    
+    val httpFileServer = new HttpFileServer()
+    httpFileServer.initialize()
+    System.setProperty("spark.fileserver.uri", httpFileServer.serverUri)
+    
     /*
     if (System.getProperty("spark.stream.distributed", "false") == "true") {
       val blockManagerClass = classOf[spark.storage.BlockManager].asInstanceOf[Class[_]] 
@@ -126,6 +136,7 @@ object SparkEnv {
       shuffleManager,
       broadcastManager,
       blockManager,
-      connectionManager)
+      connectionManager,
+      httpFileServer)
   }
 }

@@ -34,7 +34,7 @@ class BlockManagerWorker(val blockManager: BlockManager) extends Logging {
           /*logDebug("Processed block messages")*/
           return Some(new BlockMessageArray(responseMessages).toBufferMessage)
         } catch {
-          case e: Exception => logError("Exception handling buffer message: " + e.getMessage)
+          case e: Exception => logError("Exception handling buffer message", e)
           return None
         }
       }
@@ -71,7 +71,7 @@ class BlockManagerWorker(val blockManager: BlockManager) extends Logging {
     logDebug("PutBlock " + id + " started from " + startTimeMs + " with data: " + bytes)
     blockManager.putBytes(id, bytes, level)
     logDebug("PutBlock " + id + " used " + Utils.getUsedTimeMs(startTimeMs)
-        + " with data size: " + bytes.array().length)
+        + " with data size: " + bytes.limit)
   }
 
   private def getBlock(id: String): ByteBuffer = {
