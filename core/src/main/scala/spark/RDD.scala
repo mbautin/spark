@@ -61,6 +61,9 @@ abstract class RDD[T: ClassManifest](@transient sc: SparkContext) extends Serial
   def compute(split: Split): Iterator[T]
   @transient val dependencies: List[Dependency[_]]
   
+  // Record user function generating this RDD
+  val origin = Utils.getSparkCallSite
+  
   // Optionally overridden by subclasses to specify how they are partitioned
   val partitioner: Option[Partitioner] = None
 
@@ -89,14 +92,14 @@ abstract class RDD[T: ClassManifest](@transient sc: SparkContext) extends Serial
   }
 
   // Turn on the default caching level for this RDD
-  def persist(): RDD[T] = persist(StorageLevel.MEMORY_ONLY_DESER)
+  def persist(): RDD[T] = persist(StorageLevel.MEMORY_ONLY)
   
   // Turn on the default caching level for this RDD
   def cache(): RDD[T] = persist()
 
   def getStorageLevel = storageLevel
   
-  def checkpoint(level: StorageLevel = StorageLevel.DISK_AND_MEMORY_DESER_2): RDD[T] = {
+  def checkpoint(level: StorageLevel = StorageLevel.MEMORY_AND_DISK_2): RDD[T] = {
     if (!level.useDisk && level.replication < 2) {
       throw new Exception("Cannot checkpoint without using disk or replication (level requested was " + level + ")")
     } 
