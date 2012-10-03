@@ -16,6 +16,10 @@
        (if (and (= 1 (count jars)) (coll? (first jars)))
          (JavaSparkContext. master framework-name spark-home (to-array jars))))))
 
+(defn wrappers!
+  "Initialize wrapper functions so that 'map', 'reduce', 'filter', etc. can be used with RDDs in addition to Clojure collections."
+  [] (use '(spark.api.clojure wrappers)))
+
 
 (let [jsc (ref nil)]
 

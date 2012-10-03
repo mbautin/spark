@@ -19,5 +19,8 @@
                  [org.apache.hadoop/hadoop-core "0.20.205.0"]
                  [asm/asm-all "3.3.1"]]
   :min-lein-version "2.0.0"
-  :aot [spark.api.clojure.FunctionFactory])
+  :aot [spark.api.clojure.FunctionFactory]
+  :repl-options {
+                 :init (use '(spark.api.clojure core))}
+  )
 
