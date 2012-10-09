@@ -8,7 +8,7 @@ title: Spark Quick Start
 
 # Introduction
 
-This document provides a quick-and-dirty look at Spark's API. See the [programming guide]({{HOME_PATH}}/scala-programming-guide.html) for a complete reference. To follow along with this guide, you only need to have successfully [built spark]({{HOME_PATH}}) on one machine. Building Spark is as simple as running
+This document provides a quick-and-dirty look at Spark's API. See the [programming guide](scala-programming-guide.html) for a complete reference. To follow along with this guide, you only need to have successfully built Spark on one machine. Building Spark is as simple as running
 
 {% highlight bash %}
 $ sbt/sbt package
@@ -29,7 +29,7 @@ scala> val textFile = sc.textFile("README.md")
 textFile: spark.RDD[String] = spark.MappedRDD@2ee9b6e3
 {% endhighlight %}
 
-RDD's have _[actions]({{HOME_PATH}}/scala-programming-guide.html#actions)_, which return values, and _[transformations]({{HOME_PATH}}/scala-programming-guide.html#transformations)_, which return pointers to new RDD's. Let's start with a few actions:
+RDD's have _[actions](scala-programming-guide.html#actions)_, which return values, and _[transformations](scala-programming-guide.html#transformations)_, which return pointers to new RDD's. Let's start with a few actions:
 
 {% highlight scala %}
 scala> textFile.count() // Number of items in this RDD
@@ -39,7 +39,7 @@ scala> textFile.first() // First item in this RDD
 res1: String = # Spark
 {% endhighlight %}
 
-Now let's use a transformation. We will use the [filter]({{HOME_PATH}}/scala-programming-guide.html#transformations)() transformation to return a new RDD with a subset of the items in the file.
+Now let's use a transformation. We will use the [filter](scala-programming-guide.html#transformations)() transformation to return a new RDD with a subset of the items in the file.
 
 {% highlight scala %}
 scala> val sparkLinesOnly = textFile.filter(line => line.contains("Spark"))
@@ -61,7 +61,7 @@ scala> textFile.map(line => line.split(" ").size).reduce((a, b) => if (a < b) {b
 res4: Long = 16
 {% endhighlight %}
 
-This first maps a line to an integer value, creating a new RDD. `reduce` is called on that RDD to find the largest line count. The arguments to [map]({{HOME_PATH}}/scala-programming-guide.html#transformations)() and [reduce]({{HOME_PATH}}/scala-programming-guide.html#actions)() are scala closures. We can easily include functions declared elsewhere, or include existing functions in our anonymous closures. For instance, we can use `Math.max()` to make this code easier to understand. 
+This first maps a line to an integer value, creating a new RDD. `reduce` is called on that RDD to find the largest line count. The arguments to [map](scala-programming-guide.html#transformations)() and [reduce](scala-programming-guide.html#actions)() are scala closures. We can easily include functions declared elsewhere, or include existing functions in our anonymous closures. For instance, we can use `Math.max()` to make this code easier to understand. 
 
 {% highlight scala %}
 scala> import java.lang.Math;
@@ -78,7 +78,7 @@ scala> val wordCountRDD = textFile.flatMap(line => line.split(" ")).map(word => 
 wordCountRDD: spark.RDD[(java.lang.String, Int)] = spark.ShuffledAggregatedRDD@71f027b8
 {% endhighlight %}
 
-Here, we combined the [flatMap]({{HOME_PATH}}/scala-programming-guide.html#transformations)(), [map]({{HOME_PATH}}/scala-programming-guide.html#transformations)() and [reduceByKey]({{HOME_PATH}}/scala-programming-guide.html#transformations)() transformations to create per-word counts in the file. To collect the word counts in our shell, we can use the [collect]({{HOME_PATH}}/scala-programming-guide.html#actions)() action:
+Here, we combined the [flatMap](scala-programming-guide.html#transformations)(), [map](scala-programming-guide.html#transformations)() and [reduceByKey](scala-programming-guide.html#transformations)() transformations to create per-word counts in the file. To collect the word counts in our shell, we can use the [collect](scala-programming-guide.html#actions)() action:
 
 {% highlight scala %}
 scala> wordCountRDD.collect()
@@ -119,7 +119,7 @@ import SparkContext._
 object SimpleJob extends Application {
   val logFile = "/var/log/syslog" // Should be some log file on your system
   val sc = new SparkContext("local", "Simple Job", "$YOUR_SPARK_HOME", 
-    "target/scala-2.9.2/simple-project_2.9.2-1.0.jar")
+    "target/scala-{{site.SCALA_VERSION}}/simple-project_{{site.SCALA_VERSION}}-1.0.jar")
   val logData = sc.textFile(logFile, 2).cache()
   val numAs = logData.filter(line => line.contains("a")).count()
   val numBs = logData.filter(line => line.contains("b")).count()
@@ -136,9 +136,9 @@ name := "Simple Project"
 
 version := "1.0"
 
-scalaVersion := "2.9.2"
+scalaVersion := "{{site.SCALA_VERSION}}"
 
-libraryDependencies += "org.spark-project" %% "spark-core" % "0.6.0-SNAPSHOT"
+libraryDependencies += "org.spark-project" %% "spark-core" % "{{site.SPARK_VERSION}}"
 {% endhighlight %}
 
 Of course, for sbt to work correctly, we'll need to layout `SimpleJob.scala` and `simple.sbt` according to the typical directory structure. Once that is in place, we can create a jar package containing the job's code, then use `sbt run` to execute our example job. 
@@ -158,7 +158,7 @@ $ sbt run
 Lines with a: 8422, Lines with b: 1836
 {% endhighlight %}
 
-This example only runs the job locally; for a tutorial on running jobs across several machines, see the [Standalone Mode]({{HOME_PATH}}/spark-standalone.html) documentation and consider using a distributed input source, such as HDFS.
+This example only runs the job locally; for a tutorial on running jobs across several machines, see the [Standalone Mode](spark-standalone.html) documentation and consider using a distributed input source, such as HDFS.
 
 # A Spark Job In Java
 Now say we wanted to write custom job using the Spark API. We will walk through a simple job in both Scala (with sbt) and Java (with maven). If you using other build systems, please reference the Spark assembly jar in the developer guide. The first step is to publish Spark to our local Ivy/Maven repositories. From the Spark directory:
@@ -209,8 +209,8 @@ Our Maven `pom.xml` file will list Spark as a dependency. Note that Spark artifa
   <dependencies>
     <dependency> <!-- Spark dependency -->
       <groupId>org.spark-project</groupId>
-      <artifactId>spark-core_2.9.2</artifactId>
-      <version>0.6.0-SNAPSHOT</version>
+      <artifactId>spark-core_{{site.SCALA_VERSION}}</artifactId>
+      <version>{{site.SPARK_VERSION}}</version>
     </dependency>
   </dependencies>
 </project>
@@ -235,5 +235,5 @@ $ mvn exec:java -Dexec.mainClass="SimpleJob"
 Lines with a: 8422, Lines with b: 1836
 {% endhighlight %}
 
-This example only runs the job locally; for a tutorial on running jobs across several machines, see the [Standalone Mode]({{HOME_PATH}}/spark-standalone.html) documentation and consider using a distributed input source, such as HDFS.
+This example only runs the job locally; for a tutorial on running jobs across several machines, see the [Standalone Mode](spark-standalone.html) documentation and consider using a distributed input source, such as HDFS.
 
