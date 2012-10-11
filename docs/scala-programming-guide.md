@@ -1,6 +1,6 @@
 ---
 layout: global
-title: Spark Scala Programming Guide
+title: Scala Programming Guide
 ---
 
 * This will become a table of contents (this text will be scraped).
@@ -17,7 +17,13 @@ This guide shows each of these features and walks through some samples. It assum
 
 # Linking with Spark
 
-To write a Spark application, you will need to add both Spark and its dependencies to your CLASSPATH. The easiest way to do this is to run `sbt/sbt assembly` to build both Spark and its dependencies into one JAR (`core/target/spark-core-assembly-0.6.0.jar`), then add this to your CLASSPATH. Alternatively, you can publish Spark to the Maven cache on your machine using `sbt/sbt publish-local`. It will be an artifact called `spark-core` under the organization `org.spark-project`.
+To write a Spark application, you will need to add both Spark and its dependencies to your CLASSPATH. If you use sbt or Maven, Spark is available through Maven Central at:
+
+    groupId = org.spark_project
+    artifactId = spark-core_{{site.SCALA_VERSION}}
+    version = {{site.SPARK_VERSION}} 
+
+For other build systems or environments, you can run `sbt/sbt assembly` to build both Spark and its dependencies into one JAR (`core/target/spark-core-assembly-0.6.0.jar`), then add this to your CLASSPATH.
 
 In addition, you'll need to import some Spark classes and implicit conversions. Add the following lines at the top of your program:
 
@@ -37,7 +43,11 @@ new SparkContext(master, jobName, [sparkHome], [jars])
 
 The `master` parameter is a string specifying a [Mesos](running-on-mesos.html) cluster to connect to, or a special "local" string to run in local mode, as described below. `jobName` is a name for your job, which will be shown in the Mesos web UI when running on a cluster. Finally, the last two parameters are needed to deploy your code to a cluster if running in distributed mode, as described later.
 
-In the Spark interpreter, a special interpreter-aware SparkContext is already created for you, in the variable called `sc`. Making your own SparkContext will not work. You can set which master the context connects to using the `MASTER` environment variable. For example, run `MASTER=local[4] ./spark-shell` to run locally with four cores.
+In the Spark shell, a special interpreter-aware SparkContext is already created for you, in the variable called `sc`. Making your own SparkContext will not work. You can set which master the context connects to using the `MASTER` environment variable. For example, to run on four cores, use
+
+{% highlight bash %}
+$ MASTER=local[4] ./spark-shell
+{% endhighlight %}
 
 ### Master URLs
 

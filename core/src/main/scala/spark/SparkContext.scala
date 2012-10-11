@@ -35,12 +35,8 @@ import spark.broadcast._
 import spark.deploy.LocalSparkCluster
 import spark.partial.ApproximateEvaluator
 import spark.partial.PartialResult
-import spark.rdd.DoubleRDDFunctions
 import spark.rdd.HadoopRDD
 import spark.rdd.NewHadoopRDD
-import spark.rdd.OrderedRDDFunctions
-import spark.rdd.PairRDDFunctions
-import spark.rdd.SequenceFileRDDFunctions
 import spark.rdd.UnionRDD
 import spark.scheduler.ShuffleMapTask
 import spark.scheduler.DAGScheduler
@@ -61,7 +57,7 @@ import spark.storage.BlockManagerMaster
  * @param jars Collection of JARs to send to the cluster. These can be paths on the local file
  *             system or HDFS, HTTP, HTTPS, or FTP URLs.
  */
-class SparkContext(master: String, jobName: String, val sparkHome: String, val jars: Seq[String])
+class SparkContext(master: String, jobName: String, val sparkHome: String, jars: Seq[String])
   extends Logging {
 
   /**
