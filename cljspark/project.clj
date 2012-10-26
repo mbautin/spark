@@ -2,7 +2,7 @@
   :description "Clojure API for Spark"
   :url "https://github.com/markhamstra/spark/tree/dev/cljspark"
   :repositories [["typesafe" "http://repo.typesafe.com/typesafe/releases/"]
-                 ["sonatype" "http://oss.sonatype.org/content/groups/public/"]]
+                 ["spray" "http://repo.spray.cc/"]]
   :dependencies [[org.clojure/clojure "1.4.0"]
                  [org.spark-project/spark-core_2.9.2 "0.7.0-SNAPSHOT"]
                  [org.apache.mesos/mesos "0.9.0-incubating"]]
