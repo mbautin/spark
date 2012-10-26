@@ -49,9 +49,9 @@
   (defn parallelize-pairs
   "Parallelize a collection of scala.Tuple2 into a JavaPairRDD"
   ([jsc pairs num-slices]
-     (.parallelizePairs jsc (java.util.ArrayList pairs) num-slices))
+     (.parallelizePairs @jsc (java.util.ArrayList pairs) num-slices))
   ([jsc pairs]
-     (.parallelizePairs jsc (ArrayList. pairs))))
+     (.parallelizePairs @jsc (ArrayList. pairs))))
 
   (defn parallelize-doubles
     "Parallelize a collection of Doubles into a JavaDoubleRDD"
