@@ -176,9 +176,14 @@ InputFormat and extra configuration options to pass to the input format."
     [f]
     (.sparkFlatMapFunction factory f))
   (defn spark-pair-function
-    "Create a spark.api.java.function.PairFunction from a clojure function whose result is a collection.  First two elements of the collection are returned as a scala.Tuple2."
+    "Create a spark.api.java.function.PairFunction from a clojure function whose result is a collection."
     [f]
-    (.sparkPairFunction factory f)))
+    (.sparkPairFunction factory f))
+  (defn spark-pair-flat-map-function
+    "Create a spark.api.java.function.PairFlatMapFunction from a clojure function whose result is a collection of collections."
+    [f]
+    (.sparkPairFlatMapFunction factory f))
+  )
 
 (defmulti spark-function-multi :kv)
 
@@ -186,11 +191,17 @@ InputFormat and extra configuration options to pass to the input format."
 
 (defmethod spark-function-multi :default [f] (spark-pair-function (:kv f)))
 
+(defmulti spark-flat-map-function-multi :kv)
+
+(defmethod spark-flat-map-function-multi nil [f] (spark-flat-map-function f))
+
+(defmethod spark-flat-map-function-multi :default [f] (spark-pair-flat-map-function (:kv f)))
+
 (defn spark-map [f rdd]
   (.map rdd (spark-function-multi f)))
 
 (defn flat-map [f rdd]
-  (.flatMap rdd (spark-flat-map-function f)))
+  (.flatMap rdd (spark-flat-map-function-multi f)))
 
 (defn spark-reduce [f rdd]
   (.reduce rdd (spark-function2 f)))
