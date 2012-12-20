@@ -31,5 +31,4 @@ project/plugins/src_managed/
 logs/
 log/
 spark-tests.log
-FileServerSuite.txt
-
+dependency-reduced-pom.xml
