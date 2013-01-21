@@ -135,8 +135,6 @@ private[spark] class PythonRDD[T: ClassManifest](
     }
   }
 
-  override def checkpoint() { }
-
   val asJavaRDD : JavaRDD[Array[Byte]] = JavaRDD.fromRDD(this)
 }
 
@@ -152,7 +150,6 @@ private class PairwiseRDD(prev: RDD[Array[Byte]]) extends
       case Seq(a, b) => (a, b)
       case x          => throw new Exception("PairwiseRDD: unexpected value: " + x)
     }
-  override def checkpoint() { }
   val asJavaPairRDD : JavaPairRDD[Array[Byte], Array[Byte]] = JavaPairRDD.fromRDD(this)
 }
 
@@ -250,11 +247,6 @@ private object Pickle {
   val EMPTY_LIST: Byte = ']'
   val MARK: Byte = '('
   val APPENDS: Byte = 'e'
-}
-
-private class ExtractValue extends spark.api.java.function.Function[(Array[Byte],
-  Array[Byte]), Array[Byte]] {
-  override def call(pair: (Array[Byte], Array[Byte])) : Array[Byte] = pair._2
 }
 
 private class BytesToString extends spark.api.java.function.Function[Array[Byte], String] {
