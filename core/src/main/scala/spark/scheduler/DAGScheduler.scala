@@ -74,11 +74,13 @@ class DAGScheduler(
 
   val nextRunId = new AtomicInteger(0)
 
+  val runIdToStageIds = new HashMap[Int, HashSet[Int]]
+
   val nextStageId = new AtomicInteger(0)
 
-  val idToStage = new TimeStampedHashMap[Int, Stage]
+  val idToStage = new HashMap[Int, Stage]
 
-  val shuffleToMapStage = new TimeStampedHashMap[Int, Stage]
+  val shuffleToMapStage = new HashMap[Int, Stage]
 
   private[spark] val stageToInfos = new TimeStampedHashMap[Stage, StageInfo]
 
@@ -99,13 +101,11 @@ class DAGScheduler(
   val waiting = new HashSet[Stage] // Stages we need to run whose parents aren't done
   val running = new HashSet[Stage] // Stages we are running right now
   val failed = new HashSet[Stage]  // Stages that must be resubmitted due to fetch failures
-  val pendingTasks = new TimeStampedHashMap[Stage, HashSet[Task[_]]] // Missing tasks from each stage
+  val pendingTasks = new HashMap[Stage, HashSet[Task[_]]] // Missing tasks from each stage
   var lastFetchFailureTime: Long = 0  // Used to wait a bit to avoid repeated resubmits
 
   val activeJobs = new HashSet[ActiveJob]
   val resultStageToJob = new HashMap[Stage, ActiveJob]
-
-  val metadataCleaner = new MetadataCleaner("DAGScheduler", this.cleanup)
 
   // Start a thread to run the DAGScheduler event loop
   def start() {
@@ -161,6 +161,8 @@ class DAGScheduler(
     val stage = new Stage(id, rdd, shuffleDep, getParentStages(rdd, priority), priority)
     idToStage(id) = stage
     stageToInfos(stage) = StageInfo(stage)
+    val stageIdSet = runIdToStageIds.getOrElseUpdate(priority, new HashSet)
+    stageIdSet += id
     stage
   }
 
@@ -260,6 +262,7 @@ class DAGScheduler(
         logInfo("Failed to run " + callSite)
         throw exception
     }
+    r
   }
 
   def runApproximateJob[T, U, R](
@@ -528,6 +531,7 @@ class DAGScheduler(
                     resultStageToJob -= stage
                     markStageAsFinished(stage)
                     sparkListeners.foreach(_.onJobEnd(SparkListenerJobEnd(job, JobSucceeded)))
+                    removeStages(job)
                   }
                   job.listener.taskSucceeded(rt.outputId, event.result)
                 }
@@ -673,6 +677,8 @@ class DAGScheduler(
       sparkListeners.foreach(_.onJobEnd(SparkListenerJobEnd(job, JobFailed(error))))
       activeJobs -= job
       resultStageToJob -= resultStage
+      removeStages(job)
+      job.listener.jobFailed(new SparkException("Job failed: " + reason))
     }
     if (dependentStages.isEmpty) {
       logInfo("Ignoring failure of " + failedStage + " because all jobs depending on it are done")
@@ -749,9 +755,21 @@ class DAGScheduler(
     logInfo("pendingTasks " + sizeBefore + " --> " + pendingTasks.size)
   }
 
+  def removeStages(job: ActiveJob) = {
+    runIdToStageIds(job.runId).foreach(stageId => {
+      idToStage.get(stageId).map( stage => {
+        pendingTasks -= stage
+        waiting -= stage
+        running -= stage
+        failed -= stage
+      })
+      idToStage -= stageId
+    })
+    runIdToStageIds -= job.runId
+  }
+
   def stop() {
     eventQueue.put(StopDAGScheduler)
-    metadataCleaner.cancel()
     taskSched.stop()
   }
 }
