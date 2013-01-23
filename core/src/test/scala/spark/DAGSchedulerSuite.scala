@@ -58,7 +58,7 @@ class DAGSchedulerSuite extends FunSuite {
     val sc = new SparkContext("local", "test")
     val dagScheduler = new DAGScheduler(new TaskSchedulerMock(count => Success))
     try {
-      val rdd = new ParallelCollection(sc, 1.to(100).toSeq, 5)
+      val rdd = new ParallelCollection(sc, 1.to(100).toSeq, 5, Map.empty)
       val func = (tc: TaskContext, iter: Iterator[Int]) => 1
       val callSite = Utils.getSparkCallSite
 
@@ -76,7 +76,7 @@ class DAGSchedulerSuite extends FunSuite {
     val sc = new SparkContext("local", "test")
     val dagScheduler = new DAGScheduler(new TaskSchedulerMock(count => Success))
     try {
-      val rdd = new ParallelCollection(sc, 1.to(100).toSeq, 5)
+      val rdd = new ParallelCollection(sc, 1.to(100).toSeq, 5, Map.empty)
       val func = (tc: TaskContext, iter: Iterator[Int]) => 1
       val callSite = Utils.getSparkCallSite
 
