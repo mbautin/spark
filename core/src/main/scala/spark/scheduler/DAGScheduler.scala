@@ -74,6 +74,8 @@ class DAGScheduler(
 
   val nextRunId = new AtomicInteger(0)
 
+  val runIdToStageIds = new HashMap[Int, HashSet[Int]]
+
   val nextStageId = new AtomicInteger(0)
 
   val idToStage = new TimeStampedHashMap[Int, Stage]
@@ -161,6 +163,8 @@ class DAGScheduler(
     val stage = new Stage(id, rdd, shuffleDep, getParentStages(rdd, priority), priority)
     idToStage(id) = stage
     stageToInfos(stage) = StageInfo(stage)
+    val stageIdSet = runIdToStageIds.getOrElseUpdate(priority, new HashSet)
+    stageIdSet += id
     stage
   }
 
@@ -378,11 +382,7 @@ class DAGScheduler(
         logDebug("Got event of type " + event.getClass.getName)
       }
 
-      if (event != null) {
-        if (processEvent(event)) {
-          return
-        }
-      }
+      if (event != null && processEvent(event)) return
 
       val time = System.currentTimeMillis() // TODO: use a pluggable clock for testability
       // Periodically resubmit failed stages if some map output fetches have failed and we have
@@ -528,6 +528,7 @@ class DAGScheduler(
                     resultStageToJob -= stage
                     markStageAsFinished(stage)
                     sparkListeners.foreach(_.onJobEnd(SparkListenerJobEnd(job, JobSucceeded)))
+                    removeStages(job)
                   }
                   job.listener.taskSucceeded(rt.outputId, event.result)
                 }
@@ -673,6 +674,8 @@ class DAGScheduler(
       sparkListeners.foreach(_.onJobEnd(SparkListenerJobEnd(job, JobFailed(error))))
       activeJobs -= job
       resultStageToJob -= resultStage
+      removeStages(job)
+      job.listener.jobFailed(new SparkException("Job failed: " + reason))
     }
     if (dependentStages.isEmpty) {
       logInfo("Ignoring failure of " + failedStage + " because all jobs depending on it are done")
@@ -747,6 +750,19 @@ class DAGScheduler(
     sizeBefore = pendingTasks.size
     pendingTasks.clearOldValues(cleanupTime)
     logInfo("pendingTasks " + sizeBefore + " --> " + pendingTasks.size)
+  }
+
+  def removeStages(job: ActiveJob) = {
+    runIdToStageIds(job.runId).foreach(stageId => {
+      idToStage.get(stageId).map( stage => {
+        pendingTasks -= stage
+        waiting -= stage
+        running -= stage
+        failed -= stage
+      })
+      idToStage -= stageId
+    })
+    runIdToStageIds -= job.runId
   }
 
   def stop() {
