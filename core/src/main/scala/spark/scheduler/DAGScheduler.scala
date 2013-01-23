@@ -383,11 +383,7 @@ class DAGScheduler(
         logDebug("Got event of type " + event.getClass.getName)
       }
 
-      if (event != null) {
-        if (processEvent(event)) {
-          return
-        }
-      }
+      if (event != null && processEvent(event)) return
 
       val time = System.currentTimeMillis() // TODO: use a pluggable clock for testability
       // Periodically resubmit failed stages if some map output fetches have failed and we have
