@@ -181,6 +181,7 @@
   <profiles>
     <profile>
       <id>hadoop1</id>
+
       <dependencies>
         <dependency>
           <groupId>org.apache.hadoop</groupId>
