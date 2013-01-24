@@ -49,6 +49,7 @@
   <profiles>
     <profile>
       <id>hadoop1</id>
+
       <dependencies>
         <dependency>
           <groupId>org.spark-project</groupId>
