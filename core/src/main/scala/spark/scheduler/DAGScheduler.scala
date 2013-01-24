@@ -60,6 +60,8 @@ class DAGScheduler(taskSched: TaskScheduler) extends TaskSchedulerListener with 
 
   val nextRunId = new AtomicInteger(0)
 
+  val runIdToStageIds = new HashMap[Int, HashSet[Int]]
+
   val nextStageId = new AtomicInteger(0)
 
   val idToStage = new TimeStampedHashMap[Int, Stage]
@@ -133,6 +135,8 @@ class DAGScheduler(taskSched: TaskScheduler) extends TaskSchedulerListener with 
     val id = nextStageId.getAndIncrement()
     val stage = new Stage(id, rdd, shuffleDep, getParentStages(rdd, priority), priority)
     idToStage(id) = stage
+    val stageIdSet = runIdToStageIds.getOrElseUpdate(priority, new HashSet)
+    stageIdSet += id
     stage
   }
 
@@ -206,13 +210,14 @@ class DAGScheduler(taskSched: TaskScheduler) extends TaskSchedulerListener with 
     val waiter = new JobWaiter(partitions.size)
     val func2 = func.asInstanceOf[(TaskContext, Iterator[_]) => _]
     eventQueue.put(JobSubmitted(finalRdd, func2, partitions.toArray, allowLocal, callSite, waiter))
-    waiter.getResult() match {
+    val r = waiter.getResult() match {
       case JobSucceeded(results: Seq[_]) =>
-        return results.asInstanceOf[Seq[U]].toArray
+        results.asInstanceOf[Seq[U]].toArray
       case JobFailed(exception: Exception) =>
         logInfo("Failed to run " + callSite)
         throw exception
     }
+    r
   }
 
   def runApproximateJob[T, U, R](
@@ -277,6 +282,7 @@ class DAGScheduler(taskSched: TaskScheduler) extends TaskSchedulerListener with 
         case StopDAGScheduler =>
           // Cancel any active jobs
           for (job <- activeJobs) {
+            removeStages(job)
             val error = new SparkException("Job cancelled because SparkContext was shut down")
             job.listener.jobFailed(error)
           }
@@ -412,13 +418,14 @@ class DAGScheduler(taskSched: TaskScheduler) extends TaskSchedulerListener with 
                 if (!job.finished(rt.outputId)) {
                   job.finished(rt.outputId) = true
                   job.numFinished += 1
-                  job.listener.taskSucceeded(rt.outputId, event.result)
                   // If the whole job has finished, remove it
                   if (job.numFinished == job.numPartitions) {
                     activeJobs -= job
                     resultStageToJob -= stage
                     running -= stage
+                    removeStages(job)
                   }
+                  job.listener.taskSucceeded(rt.outputId, event.result)
                 }
               case None =>
                 logInfo("Ignoring result from " + rt + " because its job has finished")
@@ -532,9 +539,10 @@ class DAGScheduler(taskSched: TaskScheduler) extends TaskSchedulerListener with 
     val dependentStages = resultStageToJob.keys.filter(x => stageDependsOn(x, failedStage)).toSeq
     for (resultStage <- dependentStages) {
       val job = resultStageToJob(resultStage)
-      job.listener.jobFailed(new SparkException("Job failed: " + reason))
       activeJobs -= job
       resultStageToJob -= resultStage
+      removeStages(job)
+      job.listener.jobFailed(new SparkException("Job failed: " + reason))
     }
     if (dependentStages.isEmpty) {
       logInfo("Ignoring failure of " + failedStage + " because all jobs depending on it are done")
@@ -609,6 +617,19 @@ class DAGScheduler(taskSched: TaskScheduler) extends TaskSchedulerListener with 
     sizeBefore = pendingTasks.size
     pendingTasks.clearOldValues(cleanupTime)
     logInfo("pendingTasks " + sizeBefore + " --> " + pendingTasks.size)
+  }
+
+  def removeStages(job: ActiveJob) = {
+    runIdToStageIds(job.runId).foreach(stageId => {
+      idToStage.get(stageId).map( stage => {
+        pendingTasks -= stage
+        waiting -= stage
+        running -= stage
+        failed -= stage
+      })
+      idToStage -= stageId
+    })
+    runIdToStageIds -= job.runId
   }
 
   def stop() {
