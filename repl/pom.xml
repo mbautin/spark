@@ -124,6 +124,7 @@
     </profile>
     <profile>
       <id>hadoop2</id>
+
       <properties>
         <classifier>hadoop2</classifier>
       </properties>

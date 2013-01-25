@@ -120,6 +120,7 @@
     </profile>
     <profile>
       <id>hadoop2</id>
+
       <dependencies>
         <dependency>
           <groupId>org.spark-project</groupId>
