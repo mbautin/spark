@@ -216,12 +216,7 @@
     </profile>
     <profile>
       <id>hadoop2</id>
-      <activation>
-        <property>
-          <name>hadoopVersion</name>
-          <value>2</value>
-        </property>
-      </activation>
+
       <dependencies>
         <dependency>
           <groupId>org.apache.hadoop</groupId>
