@@ -10,11 +10,21 @@
      (JavaSparkContext. sc))
   ([^String master ^String framework-name]
      (JavaSparkContext. master framework-name))
+  ;; ([^String master ^String framework-name ^String spark-home ^String jar-filename]
+  ;;    (JavaSparkContext. master framework-name spark-home jar-filename))
   ([^String master ^String framework-name ^String spark-home & jars]
      (if (nil? jars)
        (JavaSparkContext. master framework-name spark-home "")
-       (if (and (= 1 (count jars)) (coll? (first jars)))
-         (JavaSparkContext. master framework-name spark-home (to-array jars))))))
+       (if (= 1 (count jars))
+         (if (coll? (first jars))
+           (JavaSparkContext. master framework-name spark-home (into-array (first jars)))
+           (JavaSparkContext. master framework-name spark-home jars))
+         (JavaSparkContext. master framework-name spark-home (into-array jars))))))
+  ;; ([^String master ^String framework-name ^String spark-home & jars]
+  ;;    (if (nil? jars)
+  ;;      (JavaSparkContext. master framework-name spark-home "")
+  ;;      (if (and (= 1 (count jars)) (coll? (first jars)))
+  ;;        (JavaSparkContext. master framework-name spark-home (into-array (first jars))))))
 
 (defn wrappers!
   "Initialize wrapper functions so that 'map', 'reduce', 'filter', etc. can be used with RDDs in addition to Clojure collections."
@@ -31,9 +41,12 @@
   ([^String master ^String framework-name]
      (dosync
       (ref-set jsc (spark-context master framework-name))))
-  ([^String master ^String framework-name ^String spark-home & jars]
+  ([^String master ^String framework-name ^String spark-home ^String jar-filename]
      (dosync
-      (ref-set jsc (spark-context master framework-name spark-home jars)))))
+      (ref-set jsc (spark-context master framework-name spark-home jar-filename)))))
+  ;; ([^String master ^String framework-name ^String spark-home & jars]
+  ;;    (dosync
+  ;;     (ref-set jsc (spark-context master framework-name spark-home jars)))))
 
   ;;   val env = sc.env
   (defn env []
@@ -141,9 +154,7 @@ InputFormat and extra configuration options to pass to the input format."
   (defn get-spark-context
     "Get the SparkContext from the current JavaSparkContext"
     []
-    (.sc @jsc))
-
-  )
+    (.sc @jsc)))
 
 (defn union
   "Union of RDDs"
