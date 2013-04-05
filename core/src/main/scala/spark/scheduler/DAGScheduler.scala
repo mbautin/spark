@@ -72,9 +72,9 @@ class DAGScheduler(
 
   val nextStageId = new AtomicInteger(0)
 
-  val idToStage = new HashMap[Int, Stage]
+  val idToStage = new TimeStampedHashMap[Int, Stage]
 
-  val shuffleToMapStage = new HashMap[Int, Stage]
+  val shuffleToMapStage = new TimeStampedHashMap[Int, Stage]
 
   private[spark] val stageToInfos = new TimeStampedHashMap[Stage, StageInfo]
 
@@ -93,11 +93,13 @@ class DAGScheduler(
   val waiting = new HashSet[Stage] // Stages we need to run whose parents aren't done
   val running = new HashSet[Stage] // Stages we are running right now
   val failed = new HashSet[Stage]  // Stages that must be resubmitted due to fetch failures
-  val pendingTasks = new HashMap[Stage, HashSet[Task[_]]] // Missing tasks from each stage
+  val pendingTasks = new TimeStampedHashMap[Stage, HashSet[Task[_]]] // Missing tasks from each stage
   var lastFetchFailureTime: Long = 0  // Used to wait a bit to avoid repeated resubmits
 
   val activeJobs = new HashSet[ActiveJob]
   val resultStageToJob = new HashMap[Stage, ActiveJob]
+
+  val metadataCleaner = new MetadataCleaner("DAGScheduler", this.cleanup)
 
   // Start a thread to run the DAGScheduler event loop
   def start() {
@@ -740,6 +742,7 @@ class DAGScheduler(
 
   def stop() {
     eventQueue.put(StopDAGScheduler)
+    metadataCleaner.cancel()
     taskSched.stop()
   }
 }
