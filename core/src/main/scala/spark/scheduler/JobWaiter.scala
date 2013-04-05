@@ -8,7 +8,7 @@ import scala.collection.mutable.ArrayBuffer
  */
 private[spark] class JobWaiter[T](totalTasks: Int, resultHandler: (Int, T) => Unit)
   extends JobListener {
-
+  private val taskResults = ArrayBuffer.fill[Any](totalTasks)(null)
   private var finishedTasks = 0
 
   private var jobFinished = false          // Is the job as a whole finished (succeeded or failed)?
@@ -20,10 +20,11 @@ private[spark] class JobWaiter[T](totalTasks: Int, resultHandler: (Int, T) => Un
         throw new UnsupportedOperationException("taskSucceeded() called on a finished JobWaiter")
       }
       resultHandler(index, result.asInstanceOf[T])
+      taskResults(index) = result
       finishedTasks += 1
       if (finishedTasks == totalTasks) {
         jobFinished = true
-        jobResult = JobSucceeded
+        jobResult = JobSucceeded(taskResults)
         this.notifyAll()
       }
     }
