@@ -523,7 +523,6 @@
   <profiles>
     <profile>
       <id>hadoop1</id>
-
       <properties>
         <hadoop.major.version>1</hadoop.major.version>
       </properties>
