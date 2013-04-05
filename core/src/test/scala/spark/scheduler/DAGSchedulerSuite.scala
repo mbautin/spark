@@ -385,6 +385,26 @@ class DAGSchedulerSuite extends FunSuite with BeforeAndAfter with LocalSparkCont
     assert(results === Map(0 -> 42))
   }
 
+  test("oneGoodJob") {
+    val rdd = makeRdd(5, Nil)
+    submit(rdd, (0 to 4).toArray)
+    complete(taskSets(0), List((Success, 42)))
+    assert(results === Map(0 -> 42))
+//    assertDagSchedulerEmpty(scheduler)
+  }
+
+  test("manyGoodJobs") {
+    val rdd = makeRdd(1, Nil)
+
+    (0 to 99).foreach(i => {
+      submit(rdd, Array(0))
+      complete(taskSets(i), List((Success, 42)))
+      assert(results === Map(0 -> 42))
+    })
+
+//    assertDagSchedulerEmpty(scheduler)
+  }
+
   /** Assert that the supplied TaskSet has exactly the given preferredLocations. */
   private def assertLocations(taskSet: TaskSet, locations: Seq[Seq[String]]) {
     assert(locations.size === taskSet.tasks.size)
@@ -399,5 +419,17 @@ class DAGSchedulerSuite extends FunSuite with BeforeAndAfter with LocalSparkCont
 
   private def makeBlockManagerId(host: String): BlockManagerId =
     BlockManagerId("exec-" + host, host, 12345)
+
+  private def assertDagSchedulerEmpty(dagScheduler: DAGScheduler) = {
+    assert(dagScheduler.pendingTasks.isEmpty)
+    assert(dagScheduler.activeJobs.isEmpty)
+    assert(dagScheduler.failed.isEmpty)
+    assert(dagScheduler.runIdToStageIds.isEmpty)
+    assert(dagScheduler.idToStage.isEmpty)
+    assert(dagScheduler.resultStageToJob.isEmpty)
+    assert(dagScheduler.running.isEmpty)
+    assert(dagScheduler.shuffleToMapStage.isEmpty)
+    assert(dagScheduler.waiting.isEmpty)
+  }
 
 }
