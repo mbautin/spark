@@ -170,7 +170,7 @@
       <dependency>
         <groupId>org.eclipse.jetty</groupId>
         <artifactId>jetty-server</artifactId>
-        <version>7.5.3.v20111011</version>
+        <version>7.6.8.v20121106</version>
       </dependency>
       <dependency>
         <groupId>com.google.guava</groupId>
@@ -249,7 +249,7 @@
       </dependency>
       <dependency>
         <groupId>cc.spray</groupId>
-        <artifactId>spray-json_${scala.version}</artifactId>
+        <artifactId>spray-json_2.9.2</artifactId>
         <version>${spray.json.version}</version>
       </dependency>
       <dependency>
@@ -259,7 +259,7 @@
       </dependency>
       <dependency>
         <groupId>com.github.scala-incubator.io</groupId>
-        <artifactId>scala-io-file_${scala.version}</artifactId>
+        <artifactId>scala-io-file_2.9.2</artifactId>
         <version>0.4.1</version>
       </dependency>
       <dependency>
@@ -288,7 +288,7 @@
       <dependency>
         <groupId>org.scalatest</groupId>
         <artifactId>scalatest_${scala.version}</artifactId>
-        <version>1.8</version>
+        <version>1.9.1</version>
         <scope>test</scope>
       </dependency>
       <dependency>
@@ -300,13 +300,13 @@
       <dependency>
         <groupId>org.scalacheck</groupId>
         <artifactId>scalacheck_${scala.version}</artifactId>
-        <version>1.9</version>
+        <version>1.10.0</version>
         <scope>test</scope>
       </dependency>
       <dependency>
         <groupId>com.novocode</groupId>
         <artifactId>junit-interface</artifactId>
-        <version>0.8</version>
+        <version>0.9</version>
         <scope>test</scope>
       </dependency>
     </dependencies>
