@@ -676,7 +676,6 @@ class DAGScheduler(
       activeJobs -= job
       resultStageToJob -= resultStage
       removeStages(job)
-      job.listener.jobFailed(new SparkException("Job failed: " + reason))
     }
     if (dependentStages.isEmpty) {
       logInfo("Ignoring failure of " + failedStage + " because all jobs depending on it are done")
