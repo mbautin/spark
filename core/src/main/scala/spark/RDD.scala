@@ -1,48 +1,43 @@
 package spark
 
-import java.io.{ObjectOutputStream, IOException, EOFException, ObjectInputStream}
-import java.net.URL
-import java.util.{Date, Random}
-import java.util.{HashMap => JHashMap}
-import java.util.concurrent.atomic.AtomicLong
+import java.util.Random
 
 import scala.collection.Map
 import scala.collection.JavaConversions.mapAsScalaMap
 import scala.collection.mutable.ArrayBuffer
-import scala.collection.mutable.HashMap
 
-import org.apache.hadoop.fs.Path
 import org.apache.hadoop.io.BytesWritable
+import org.apache.hadoop.io.compress.CompressionCodec
 import org.apache.hadoop.io.NullWritable
 import org.apache.hadoop.io.Text
-import org.apache.hadoop.io.Writable
-import org.apache.hadoop.mapred.FileOutputCommitter
-import org.apache.hadoop.mapred.HadoopWriter
-import org.apache.hadoop.mapred.JobConf
-import org.apache.hadoop.mapred.OutputCommitter
-import org.apache.hadoop.mapred.OutputFormat
-import org.apache.hadoop.mapred.SequenceFileOutputFormat
 import org.apache.hadoop.mapred.TextOutputFormat
 
 import it.unimi.dsi.fastutil.objects.{Object2LongOpenHashMap => OLMap}
 
+import spark.broadcast.Broadcast
+import spark.Partitioner._
 import spark.partial.BoundedDouble
 import spark.partial.CountEvaluator
 import spark.partial.GroupedCountEvaluator
 import spark.partial.PartialResult
-import spark.rdd.BlockRDD
+import spark.rdd.CoalescedRDD
 import spark.rdd.CartesianRDD
 import spark.rdd.FilteredRDD
 import spark.rdd.FlatMappedRDD
 import spark.rdd.GlommedRDD
 import spark.rdd.MappedRDD
 import spark.rdd.MapPartitionsRDD
-import spark.rdd.MapPartitionsWithSplitRDD
+import spark.rdd.MapPartitionsWithIndexRDD
 import spark.rdd.PipedRDD
 import spark.rdd.SampledRDD
+import spark.rdd.ShuffledRDD
 import spark.rdd.UnionRDD
 import spark.rdd.ZippedRDD
+import spark.rdd.ZippedPartitionsRDD2
+import spark.rdd.ZippedPartitionsRDD3
+import spark.rdd.ZippedPartitionsRDD4
 import spark.storage.StorageLevel
+import spark.util.BoundedPriorityQueue
 
 import SparkContext._
 
@@ -59,7 +54,7 @@ import SparkContext._
  *
  * Internally, each RDD is characterized by five main properties:
  *
- *  - A list of splits (partitions)
+ *  - A list of partitions
  *  - A function for computing each split
  *  - A list of dependencies on other RDDs
  *  - Optionally, a Partitioner for key-value RDDs (e.g. to say that the RDD is hash-partitioned)
@@ -73,11 +68,11 @@ import SparkContext._
  * on RDD internals.
  */
 abstract class RDD[T: ClassManifest](
-    @transient var sc: SparkContext,
-    var dependencies_ : List[Dependency[_]]
+    @transient private var sc: SparkContext,
+    @transient private var deps: Seq[Dependency[_]]
   ) extends Serializable with Logging {
 
-
+  /** Construct an RDD with just a one-to-one dependency on one parent */
   def this(@transient oneParent: RDD[_]) =
     this(oneParent.context , List(new OneToOneDependency(oneParent)))
 
@@ -85,32 +80,55 @@ abstract class RDD[T: ClassManifest](
   // Methods that should be implemented by subclasses of RDD
   // =======================================================================
 
-  /** Function for computing a given partition. */
-  def compute(split: Split, context: TaskContext): Iterator[T]
+  /** Implemented by subclasses to compute a given partition. */
+  def compute(split: Partition, context: TaskContext): Iterator[T]
 
-  /** Set of partitions in this RDD. */
-  protected def getSplits(): Array[Split]
+  /**
+   * Implemented by subclasses to return the set of partitions in this RDD. This method will only
+   * be called once, so it is safe to implement a time-consuming computation in it.
+   */
+  protected def getPartitions: Array[Partition]
 
-  /** How this RDD depends on any parent RDDs. */
-  protected def getDependencies(): List[Dependency[_]] = dependencies_
+  /**
+   * Implemented by subclasses to return how this RDD depends on parent RDDs. This method will only
+   * be called once, so it is safe to implement a time-consuming computation in it.
+   */
+  protected def getDependencies: Seq[Dependency[_]] = deps
 
   /** Optionally overridden by subclasses to specify placement preferences. */
-  protected def getPreferredLocations(split: Split): Seq[String] = Nil
+  protected def getPreferredLocations(split: Partition): Seq[String] = Nil
 
   /** Optionally overridden by subclasses to specify how they are partitioned. */
   val partitioner: Option[Partitioner] = None
-
 
   // =======================================================================
   // Methods and fields available on all RDDs
   // =======================================================================
 
   /** A unique ID for this RDD (within its SparkContext). */
-  val id = sc.newRddId()
+  val id: Int = sc.newRddId()
+
+  /** A friendly name for this RDD */
+  var name: String = null
+
+  /** Assign a name to this RDD */
+  def setName(_name: String) = {
+    name = _name
+    this
+  }
+
+  /** User-defined generator of this RDD*/
+  var generator = Utils.getCallSiteInfo.firstUserClass
+  
+  /** Reset generator*/
+  def setGenerator(_generator: String) = {
+    generator = _generator
+  }
 
   /**
    * Set this RDD's storage level to persist its values across operations after the first time
-   * it is computed. Can only be called once on each RDD.
+   * it is computed. This can only be used to assign a new storage level if the RDD does not
+   * have a storage level set yet..
    */
   def persist(newLevel: StorageLevel): RDD[T] = {
     // TODO: Handle changes of StorageLevel
@@ -119,6 +137,8 @@ abstract class RDD[T: ClassManifest](
         "Cannot change storage level of an RDD after it was already assigned a level")
     }
     storageLevel = newLevel
+    // Register the RDD with the SparkContext
+    sc.persistentRdds(id) = this
     this
   }
 
@@ -128,42 +148,64 @@ abstract class RDD[T: ClassManifest](
   /** Persist this RDD with the default storage level (`MEMORY_ONLY`). */
   def cache(): RDD[T] = persist()
 
+  /**
+   * Mark the RDD as non-persistent, and remove all blocks for it from memory and disk.
+   *
+   * @param blocking Whether to block until all blocks are deleted.
+   * @return This RDD.
+   */
+  def unpersist(blocking: Boolean = true): RDD[T] = {
+    logInfo("Removing RDD " + id + " from persistence list")
+    sc.env.blockManager.master.removeRdd(id, blocking)
+    sc.persistentRdds.remove(id)
+    storageLevel = StorageLevel.NONE
+    this
+  }
+
   /** Get the RDD's current storage level, or StorageLevel.NONE if none is set. */
   def getStorageLevel = storageLevel
 
-  /**
-   * Get the preferred location of a split, taking into account whether the
-   * RDD is checkpointed or not.
-   */
-  final def preferredLocations(split: Split): Seq[String] = {
-    if (isCheckpointed) {
-      checkpointData.get.getPreferredLocations(split)
-    } else {
-      getPreferredLocations(split)
-    }
-  }
+  // Our dependencies and partitions will be gotten by calling subclass's methods below, and will
+  // be overwritten when we're checkpointed
+  private var dependencies_ : Seq[Dependency[_]] = null
+  @transient private var partitions_ : Array[Partition] = null
 
-  /**
-   * Get the array of splits of this RDD, taking into account whether the
-   * RDD is checkpointed or not.
-   */
-  final def splits: Array[Split] = {
-    if (isCheckpointed) {
-      checkpointData.get.getSplits
-    } else {
-      getSplits
-    }
-  }
+  /** An Option holding our checkpoint RDD, if we are checkpointed */
+  private def checkpointRDD: Option[RDD[T]] = checkpointData.flatMap(_.checkpointRDD)
 
   /**
    * Get the list of dependencies of this RDD, taking into account whether the
    * RDD is checkpointed or not.
    */
-  final def dependencies: List[Dependency[_]] = {
-    if (isCheckpointed) {
+  final def dependencies: Seq[Dependency[_]] = {
+    checkpointRDD.map(r => List(new OneToOneDependency(r))).getOrElse {
+      if (dependencies_ == null) {
+        dependencies_ = getDependencies
+      }
       dependencies_
-    } else {
-      getDependencies
+    }
+  }
+
+  /**
+   * Get the array of partitions of this RDD, taking into account whether the
+   * RDD is checkpointed or not.
+   */
+  final def partitions: Array[Partition] = {
+    checkpointRDD.map(_.partitions).getOrElse {
+      if (partitions_ == null) {
+        partitions_ = getPartitions
+      }
+      partitions_
+    }
+  }
+
+  /**
+   * Get the preferred location of a split, taking into account whether the
+   * RDD is checkpointed or not.
+   */
+  final def preferredLocations(split: Partition): Seq[String] = {
+    checkpointRDD.map(_.getPreferredLocations(split)).getOrElse {
+      getPreferredLocations(split)
     }
   }
 
@@ -172,11 +214,20 @@ abstract class RDD[T: ClassManifest](
    * This should ''not'' be called by users directly, but is available for implementors of custom
    * subclasses of RDD.
    */
-  final def iterator(split: Split, context: TaskContext): Iterator[T] = {
+  final def iterator(split: Partition, context: TaskContext): Iterator[T] = {
+    if (storageLevel != StorageLevel.NONE) {
+      SparkEnv.get.cacheManager.getOrCompute(this, split, context, storageLevel)
+    } else {
+      computeOrReadCheckpoint(split, context)
+    }
+  }
+
+  /**
+   * Compute an RDD partition or read it from a checkpoint if the RDD is checkpointing.
+   */
+  private[spark] def computeOrReadCheckpoint(split: Partition, context: TaskContext): Iterator[T] = {
     if (isCheckpointed) {
-      checkpointData.get.iterator(split, context)
-    } else if (storageLevel != StorageLevel.NONE) {
-      SparkEnv.get.cacheTracker.getOrCompute[T](this, split, context, storageLevel)
+      firstParent[T].iterator(split, context)
     } else {
       compute(split, context)
     }
@@ -204,10 +255,22 @@ abstract class RDD[T: ClassManifest](
   /**
    * Return a new RDD containing the distinct elements in this RDD.
    */
-  def distinct(numSplits: Int): RDD[T] =
-    map(x => (x, null)).reduceByKey((x, y) => x, numSplits).map(_._1)
+  def distinct(numPartitions: Int): RDD[T] =
+    map(x => (x, null)).reduceByKey((x, y) => x, numPartitions).map(_._1)
 
-  def distinct(): RDD[T] = distinct(splits.size)
+  def distinct(): RDD[T] = distinct(partitions.size)
+
+  /**
+   * Return a new RDD that is reduced into `numPartitions` partitions.
+   */
+  def coalesce(numPartitions: Int, shuffle: Boolean = false): RDD[T] = {
+    if (shuffle) {
+      // include a shuffle step so that our upstream tasks are still distributed
+      new CoalescedRDD(new ShuffledRDD(map(x => (x, null)), new HashPartitioner(numPartitions)), numPartitions).keys
+    } else {
+      new CoalescedRDD(this, numPartitions)
+    }
+  }
 
   /**
    * Return a sampled subset of this RDD.
@@ -218,8 +281,8 @@ abstract class RDD[T: ClassManifest](
   def takeSample(withReplacement: Boolean, num: Int, seed: Int): Array[T] = {
     var fraction = 0.0
     var total = 0
-    var multiplier = 3.0
-    var initialCount = count()
+    val multiplier = 3.0
+    val initialCount = count()
     var maxSelected = 0
 
     if (initialCount > Integer.MAX_VALUE - 1) {
@@ -272,18 +335,25 @@ abstract class RDD[T: ClassManifest](
   def cartesian[U: ClassManifest](other: RDD[U]): RDD[(T, U)] = new CartesianRDD(sc, this, other)
 
   /**
+   * Return an RDD of grouped items.
+   */
+  def groupBy[K: ClassManifest](f: T => K): RDD[(K, Seq[T])] =
+    groupBy[K](f, defaultPartitioner(this))
+
+  /**
    * Return an RDD of grouped elements. Each group consists of a key and a sequence of elements
    * mapping to that key.
    */
-  def groupBy[K: ClassManifest](f: T => K, numSplits: Int): RDD[(K, Seq[T])] = {
-    val cleanF = sc.clean(f)
-    this.map(t => (cleanF(t), t)).groupByKey(numSplits)
-  }
+  def groupBy[K: ClassManifest](f: T => K, numPartitions: Int): RDD[(K, Seq[T])] =
+    groupBy(f, new HashPartitioner(numPartitions))
 
   /**
    * Return an RDD of grouped items.
    */
-  def groupBy[K: ClassManifest](f: T => K): RDD[(K, Seq[T])] = groupBy[K](f, sc.defaultParallelism)
+  def groupBy[K: ClassManifest](f: T => K, p: Partitioner): RDD[(K, Seq[T])] = {
+    val cleanF = sc.clean(f)
+    this.map(t => (cleanF(t), t)).groupByKey(p)
+  }
 
   /**
    * Return an RDD created by piping elements to a forked external process.
@@ -293,13 +363,36 @@ abstract class RDD[T: ClassManifest](
   /**
    * Return an RDD created by piping elements to a forked external process.
    */
-  def pipe(command: Seq[String]): RDD[String] = new PipedRDD(this, command)
+  def pipe(command: String, env: Map[String, String]): RDD[String] = 
+    new PipedRDD(this, command, env)
+
 
   /**
    * Return an RDD created by piping elements to a forked external process.
+   * The print behavior can be customized by providing two functions.
+   *
+   * @param command command to run in forked process.
+   * @param env environment variables to set.
+   * @param printPipeContext Before piping elements, this function is called as an oppotunity
+   *                         to pipe context data. Print line function (like out.println) will be 
+   *                         passed as printPipeContext's parameter.
+   * @param printRDDElement Use this function to customize how to pipe elements. This function 
+   *                        will be called with each RDD element as the 1st parameter, and the 
+   *                        print line function (like out.println()) as the 2nd parameter.
+   *                        An example of pipe the RDD data of groupBy() in a streaming way,
+   *                        instead of constructing a huge String to concat all the elements:
+   *                        def printRDDElement(record:(String, Seq[String]), f:String=>Unit) = 
+   *                          for (e <- record._2){f(e)}
+   * @return the result RDD
    */
-  def pipe(command: Seq[String], env: Map[String, String]): RDD[String] =
-    new PipedRDD(this, command, env)
+  def pipe(
+      command: Seq[String], 
+      env: Map[String, String] = Map(), 
+      printPipeContext: (String => Unit) => Unit = null,
+      printRDDElement: (T, String => Unit) => Unit = null): RDD[String] = 
+    new PipedRDD(this, command, env, 
+      if (printPipeContext ne null) sc.clean(printPipeContext) else null, 
+      if (printRDDElement ne null) sc.clean(printRDDElement) else null)
 
   /**
    * Return a new RDD by applying a function to each partition of this RDD.
@@ -308,14 +401,80 @@ abstract class RDD[T: ClassManifest](
     preservesPartitioning: Boolean = false): RDD[U] =
     new MapPartitionsRDD(this, sc.clean(f), preservesPartitioning)
 
-   /**
+  /**
    * Return a new RDD by applying a function to each partition of this RDD, while tracking the index
    * of the original partition.
    */
+  def mapPartitionsWithIndex[U: ClassManifest](
+    f: (Int, Iterator[T]) => Iterator[U],
+    preservesPartitioning: Boolean = false): RDD[U] =
+    new MapPartitionsWithIndexRDD(this, sc.clean(f), preservesPartitioning)
+
+  /**
+   * Return a new RDD by applying a function to each partition of this RDD, while tracking the index
+   * of the original partition.
+   */
+  @deprecated("use mapPartitionsWithIndex", "0.7.0")
   def mapPartitionsWithSplit[U: ClassManifest](
     f: (Int, Iterator[T]) => Iterator[U],
     preservesPartitioning: Boolean = false): RDD[U] =
-    new MapPartitionsWithSplitRDD(this, sc.clean(f), preservesPartitioning)
+    new MapPartitionsWithIndexRDD(this, sc.clean(f), preservesPartitioning)
+
+  /**
+   * Maps f over this RDD, where f takes an additional parameter of type A.  This
+   * additional parameter is produced by constructA, which is called in each
+   * partition with the index of that partition.
+   */
+  def mapWith[A: ClassManifest, U: ClassManifest](constructA: Int => A, preservesPartitioning: Boolean = false)
+    (f:(T, A) => U): RDD[U] = {
+      def iterF(index: Int, iter: Iterator[T]): Iterator[U] = {
+        val a = constructA(index)
+        iter.map(t => f(t, a))
+      }
+    new MapPartitionsWithIndexRDD(this, sc.clean(iterF _), preservesPartitioning)
+  }
+
+  /**
+   * FlatMaps f over this RDD, where f takes an additional parameter of type A.  This
+   * additional parameter is produced by constructA, which is called in each
+   * partition with the index of that partition.
+   */
+  def flatMapWith[A: ClassManifest, U: ClassManifest](constructA: Int => A, preservesPartitioning: Boolean = false)
+    (f:(T, A) => Seq[U]): RDD[U] = {
+      def iterF(index: Int, iter: Iterator[T]): Iterator[U] = {
+        val a = constructA(index)
+        iter.flatMap(t => f(t, a))
+      }
+    new MapPartitionsWithIndexRDD(this, sc.clean(iterF _), preservesPartitioning)
+  }
+
+  /**
+   * Applies f to each element of this RDD, where f takes an additional parameter of type A.
+   * This additional parameter is produced by constructA, which is called in each
+   * partition with the index of that partition.
+   */
+  def foreachWith[A: ClassManifest](constructA: Int => A)
+    (f:(T, A) => Unit) {
+      def iterF(index: Int, iter: Iterator[T]): Iterator[T] = {
+        val a = constructA(index)
+        iter.map(t => {f(t, a); t})
+      }
+    (new MapPartitionsWithIndexRDD(this, sc.clean(iterF _), true)).foreach(_ => {})
+  }
+
+  /**
+   * Filters this RDD with p, where p takes an additional parameter of type A.  This
+   * additional parameter is produced by constructA, which is called in each
+   * partition with the index of that partition.
+   */
+  def filterWith[A: ClassManifest](constructA: Int => A)
+    (p:(T, A) => Boolean): RDD[T] = {
+      def iterF(index: Int, iter: Iterator[T]): Iterator[T] = {
+        val a = constructA(index)
+        iter.filter(t => p(t, a))
+      }
+    new MapPartitionsWithIndexRDD(this, sc.clean(iterF _), true)
+  }
 
   /**
    * Zips this RDD with another one, returning key-value pairs with the first element in each RDD,
@@ -325,6 +484,31 @@ abstract class RDD[T: ClassManifest](
    */
   def zip[U: ClassManifest](other: RDD[U]): RDD[(T, U)] = new ZippedRDD(sc, this, other)
 
+  /**
+   * Zip this RDD's partitions with one (or more) RDD(s) and return a new RDD by
+   * applying a function to the zipped partitions. Assumes that all the RDDs have the
+   * *same number of partitions*, but does *not* require them to have the same number
+   * of elements in each partition.
+   */
+  def zipPartitions[B: ClassManifest, V: ClassManifest](
+      f: (Iterator[T], Iterator[B]) => Iterator[V],
+      rdd2: RDD[B]): RDD[V] =
+    new ZippedPartitionsRDD2(sc, sc.clean(f), this, rdd2)
+
+  def zipPartitions[B: ClassManifest, C: ClassManifest, V: ClassManifest](
+      f: (Iterator[T], Iterator[B], Iterator[C]) => Iterator[V],
+      rdd2: RDD[B],
+      rdd3: RDD[C]): RDD[V] =
+    new ZippedPartitionsRDD3(sc, sc.clean(f), this, rdd2, rdd3)
+
+  def zipPartitions[B: ClassManifest, C: ClassManifest, D: ClassManifest, V: ClassManifest](
+      f: (Iterator[T], Iterator[B], Iterator[C], Iterator[D]) => Iterator[V],
+      rdd2: RDD[B],
+      rdd3: RDD[C],
+      rdd4: RDD[D]): RDD[V] =
+    new ZippedPartitionsRDD4(sc, sc.clean(f), this, rdd2, rdd3, rdd4)
+
+
   // Actions (launch a job to return a value to the user program)
 
   /**
@@ -333,6 +517,14 @@ abstract class RDD[T: ClassManifest](
   def foreach(f: T => Unit) {
     val cleanF = sc.clean(f)
     sc.runJob(this, (iter: Iterator[T]) => iter.foreach(cleanF))
+  }
+
+  /**
+   * Applies a function f to each partition of this RDD.
+   */
+  def foreachPartition(f: Iterator[T] => Unit) {
+    val cleanF = sc.clean(f)
+    sc.runJob(this, (iter: Iterator[T]) => cleanF(iter))
   }
 
   /**
@@ -356,27 +548,65 @@ abstract class RDD[T: ClassManifest](
   }
 
   /**
-   * Reduces the elements of this RDD using the specified associative binary operator.
+   * Return an RDD with the elements from `this` that are not in `other`.
+   *
+   * Uses `this` partitioner/partition size, because even if `other` is huge, the resulting
+   * RDD will be <= us.
+   */
+  def subtract(other: RDD[T]): RDD[T] =
+    subtract(other, partitioner.getOrElse(new HashPartitioner(partitions.size)))
+
+  /**
+   * Return an RDD with the elements from `this` that are not in `other`.
+   */
+  def subtract(other: RDD[T], numPartitions: Int): RDD[T] =
+    subtract(other, new HashPartitioner(numPartitions))
+
+  /**
+   * Return an RDD with the elements from `this` that are not in `other`.
+   */
+  def subtract(other: RDD[T], p: Partitioner): RDD[T] = {
+    if (partitioner == Some(p)) {
+      // Our partitioner knows how to handle T (which, since we have a partitioner, is
+      // really (K, V)) so make a new Partitioner that will de-tuple our fake tuples
+      val p2 = new Partitioner() {
+        override def numPartitions = p.numPartitions
+        override def getPartition(k: Any) = p.getPartition(k.asInstanceOf[(Any, _)]._1)
+      }
+      // Unfortunately, since we're making a new p2, we'll get ShuffleDependencies
+      // anyway, and when calling .keys, will not have a partitioner set, even though
+      // the SubtractedRDD will, thanks to p2's de-tupled partitioning, already be
+      // partitioned by the right/real keys (e.g. p).
+      this.map(x => (x, null)).subtractByKey(other.map((_, null)), p2).keys
+    } else {
+      this.map(x => (x, null)).subtractByKey(other.map((_, null)), p).keys
+    }
+  }
+
+  /**
+   * Reduces the elements of this RDD using the specified commutative and associative binary operator.
    */
   def reduce(f: (T, T) => T): T = {
     val cleanF = sc.clean(f)
     val reducePartition: Iterator[T] => Option[T] = iter => {
       if (iter.hasNext) {
         Some(iter.reduceLeft(cleanF))
-      }else {
+      } else {
         None
       }
     }
-    val options = sc.runJob(this, reducePartition)
-    val results = new ArrayBuffer[T]
-    for (opt <- options; elem <- opt) {
-      results += elem
+    var jobResult: Option[T] = None
+    val mergeResult = (index: Int, taskResult: Option[T]) => {
+      if (taskResult != None) {
+        jobResult = jobResult match {
+          case Some(value) => Some(f(value, taskResult.get))
+          case None => taskResult
+        }
+      }
     }
-    if (results.size == 0) {
-      throw new UnsupportedOperationException("empty collection")
-    } else {
-      return results.reduceLeft(cleanF)
-    }
+    sc.runJob(this, reducePartition, mergeResult)
+    // Get the final result out of our Option, or throw an exception if the RDD was empty
+    jobResult.getOrElse(throw new UnsupportedOperationException("empty collection"))
   }
 
   /**
@@ -386,9 +616,13 @@ abstract class RDD[T: ClassManifest](
    * modify t2.
    */
   def fold(zeroValue: T)(op: (T, T) => T): T = {
+    // Clone the zero value since we will also be serializing it as part of tasks
+    var jobResult = Utils.clone(zeroValue, sc.env.closureSerializer.newInstance())
     val cleanOp = sc.clean(op)
-    val results = sc.runJob(this, (iter: Iterator[T]) => iter.fold(zeroValue)(cleanOp))
-    return results.fold(zeroValue)(cleanOp)
+    val foldPartition = (iter: Iterator[T]) => iter.fold(zeroValue)(cleanOp)
+    val mergeResult = (index: Int, taskResult: T) => jobResult = op(jobResult, taskResult)
+    sc.runJob(this, foldPartition, mergeResult)
+    jobResult
   }
 
   /**
@@ -400,11 +634,14 @@ abstract class RDD[T: ClassManifest](
    * allocation.
    */
   def aggregate[U: ClassManifest](zeroValue: U)(seqOp: (U, T) => U, combOp: (U, U) => U): U = {
+    // Clone the zero value since we will also be serializing it as part of tasks
+    var jobResult = Utils.clone(zeroValue, sc.env.closureSerializer.newInstance())
     val cleanSeqOp = sc.clean(seqOp)
     val cleanCombOp = sc.clean(combOp)
-    val results = sc.runJob(this,
-        (iter: Iterator[T]) => iter.aggregate(zeroValue)(cleanSeqOp, cleanCombOp))
-    return results.fold(zeroValue)(cleanCombOp)
+    val aggregatePartition = (it: Iterator[T]) => it.aggregate(zeroValue)(cleanSeqOp, cleanCombOp)
+    val mergeResult = (index: Int, taskResult: U) => jobResult = combOp(jobResult, taskResult)
+    sc.runJob(this, aggregatePartition, mergeResult)
+    jobResult
   }
 
   /**
@@ -415,7 +652,7 @@ abstract class RDD[T: ClassManifest](
       var result = 0L
       while (iter.hasNext) {
         result += 1L
-        iter.next
+        iter.next()
       }
       result
     }).sum
@@ -430,11 +667,11 @@ abstract class RDD[T: ClassManifest](
       var result = 0L
       while (iter.hasNext) {
         result += 1L
-        iter.next
+        iter.next()
       }
       result
     }
-    val evaluator = new CountEvaluator(splits.size, confidence)
+    val evaluator = new CountEvaluator(partitions.size, confidence)
     sc.runApproximateJob(this, countElements, evaluator, timeout)
   }
 
@@ -485,7 +722,7 @@ abstract class RDD[T: ClassManifest](
       }
       map
     }
-    val evaluator = new GroupedCountEvaluator[T](splits.size, confidence)
+    val evaluator = new GroupedCountEvaluator[T](partitions.size, confidence)
     sc.runApproximateJob(this, countPartition, evaluator, timeout)
   }
 
@@ -500,7 +737,7 @@ abstract class RDD[T: ClassManifest](
     }
     val buf = new ArrayBuffer[T]
     var p = 0
-    while (buf.size < num && p < splits.size) {
+    while (buf.size < num && p < partitions.size) {
       val left = num - buf.size
       val res = sc.runJob(this, (it: Iterator[T]) => it.take(left).toArray, Array(p), true)
       buf ++= res(0)
@@ -520,11 +757,37 @@ abstract class RDD[T: ClassManifest](
   }
 
   /**
+   * Returns the top K elements from this RDD as defined by
+   * the specified implicit Ordering[T].
+   * @param num the number of top elements to return
+   * @param ord the implicit ordering for T
+   * @return an array of top elements
+   */
+  def top(num: Int)(implicit ord: Ordering[T]): Array[T] = {
+    mapPartitions { items =>
+      val queue = new BoundedPriorityQueue[T](num)
+      queue ++= items
+      Iterator.single(queue)
+    }.reduce { (queue1, queue2) =>
+      queue1 ++= queue2
+      queue1
+    }.toArray
+  }
+
+  /**
    * Save this RDD as a text file, using string representations of elements.
    */
   def saveAsTextFile(path: String) {
     this.map(x => (NullWritable.get(), new Text(x.toString)))
       .saveAsHadoopFile[TextOutputFormat[NullWritable, Text]](path)
+  }
+
+  /**
+   * Save this RDD as a compressed text file, using string representations of elements.
+   */
+  def saveAsTextFile(path: String, codec: Class[_ <: CompressionCodec]) {
+    this.map(x => (NullWritable.get(), new Text(x.toString)))
+      .saveAsHadoopFile[TextOutputFormat[NullWritable, Text]](path, codec)
   }
 
   /**
@@ -567,15 +830,15 @@ abstract class RDD[T: ClassManifest](
   /**
    * Return whether this RDD has been checkpointed or not
    */
-  def isCheckpointed(): Boolean = {
-    if (checkpointData.isDefined) checkpointData.get.isCheckpointed() else false
+  def isCheckpointed: Boolean = {
+    checkpointData.map(_.isCheckpointed).getOrElse(false)
   }
 
   /**
    * Gets the name of the file to which this RDD was checkpointed
    */
-  def getCheckpointFile(): Option[String] = {
-    if (checkpointData.isDefined) checkpointData.get.getCheckpointFile() else None
+  def getCheckpointFile: Option[String] = {
+    checkpointData.flatMap(_.getCheckpointFile)
   }
 
   // =======================================================================
@@ -585,7 +848,7 @@ abstract class RDD[T: ClassManifest](
   private var storageLevel: StorageLevel = StorageLevel.NONE
 
   /** Record user function generating this RDD. */
-  private[spark] val origin = Utils.getSparkCallSite
+  private[spark] val origin = Utils.formatSparkCallSite
 
   private[spark] def elementClassManifest: ClassManifest[T] = classManifest[T]
 
@@ -599,32 +862,58 @@ abstract class RDD[T: ClassManifest](
   /** The [[spark.SparkContext]] that this RDD was created on. */
   def context = sc
 
+  // Avoid handling doCheckpoint multiple times to prevent excessive recursion
+  private var doCheckpointCalled = false
+
   /**
-   * Performs the checkpointing of this RDD by saving this . It is called by the DAGScheduler
+   * Performs the checkpointing of this RDD by saving this. It is called by the DAGScheduler
    * after a job using this RDD has completed (therefore the RDD has been materialized and
    * potentially stored in memory). doCheckpoint() is called recursively on the parent RDDs.
    */
-  protected[spark] def doCheckpoint() {
-    if (checkpointData.isDefined) checkpointData.get.doCheckpoint()
-    dependencies.foreach(_.rdd.doCheckpoint())
+  private[spark] def doCheckpoint() {
+    if (!doCheckpointCalled) {
+      doCheckpointCalled = true
+      if (checkpointData.isDefined) {
+        checkpointData.get.doCheckpoint()
+      } else {
+        dependencies.foreach(_.rdd.doCheckpoint())
+      }
+    }
   }
 
   /**
-   * Changes the dependencies of this RDD from its original parents to the new RDD
-   * (`newRDD`) created from the checkpoint file.
+   * Changes the dependencies of this RDD from its original parents to a new RDD (`newRDD`)
+   * created from the checkpoint file, and forget its old dependencies and partitions.
    */
-  protected[spark] def changeDependencies(newRDD: RDD[_]) {
+  private[spark] def markCheckpointed(checkpointRDD: RDD[_]) {
     clearDependencies()
-    dependencies_ = List(new OneToOneDependency(newRDD))
+    partitions_ = null
+    deps = null    // Forget the constructor argument for dependencies too
   }
 
   /**
    * Clears the dependencies of this RDD. This method must ensure that all references
    * to the original parent RDDs is removed to enable the parent RDDs to be garbage
    * collected. Subclasses of RDD may override this method for implementing their own cleaning
-   * logic. See [[spark.rdd.UnionRDD]] and [[spark.rdd.ShuffledRDD]] to get a better idea.
+   * logic. See [[spark.rdd.UnionRDD]] for an example.
    */
-  protected[spark] def clearDependencies() {
+  protected def clearDependencies() {
     dependencies_ = null
   }
+
+  /** A description of this RDD and its recursive dependencies for debugging. */
+  def toDebugString: String = {
+    def debugString(rdd: RDD[_], prefix: String = ""): Seq[String] = {
+      Seq(prefix + rdd + " (" + rdd.partitions.size + " partitions)") ++
+        rdd.dependencies.flatMap(d => debugString(d.rdd, prefix + "  "))
+    }
+    debugString(this).mkString("\n")
+  }
+
+  override def toString: String = "%s%s[%d] at %s".format(
+    Option(name).map(_ + " ").getOrElse(""),
+    getClass.getSimpleName,
+    id,
+    origin)
+
 }

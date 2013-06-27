@@ -1,26 +1,26 @@
 package spark.rdd
 
-import spark.{OneToOneDependency, RDD, SparkContext, Split, TaskContext}
+import spark.{Utils, OneToOneDependency, RDD, SparkContext, Partition, TaskContext}
 import java.io.{ObjectOutputStream, IOException}
 
 
-private[spark] class ZippedSplit[T: ClassManifest, U: ClassManifest](
+private[spark] class ZippedPartition[T: ClassManifest, U: ClassManifest](
     idx: Int,
     @transient rdd1: RDD[T],
     @transient rdd2: RDD[U]
-  ) extends Split {
+  ) extends Partition {
 
-  var split1 = rdd1.splits(idx)
-  var split2 = rdd1.splits(idx)
+  var partition1 = rdd1.partitions(idx)
+  var partition2 = rdd2.partitions(idx)
   override val index: Int = idx
 
-  def splits = (split1, split2)
+  def partitions = (partition1, partition2)
 
   @throws(classOf[IOException])
   private def writeObject(oos: ObjectOutputStream) {
-    // Update the reference to parent split at the time of task serialization
-    split1 = rdd1.splits(idx)
-    split2 = rdd2.splits(idx)
+    // Update the reference to parent partition at the time of task serialization
+    partition1 = rdd1.partitions(idx)
+    partition2 = rdd2.partitions(idx)
     oos.defaultWriteObject()
   }
 }
@@ -29,37 +29,50 @@ class ZippedRDD[T: ClassManifest, U: ClassManifest](
     sc: SparkContext,
     var rdd1: RDD[T],
     var rdd2: RDD[U])
-  extends RDD[(T, U)](sc, List(new OneToOneDependency(rdd1), new OneToOneDependency(rdd2)))
-  with Serializable {
+  extends RDD[(T, U)](sc, List(new OneToOneDependency(rdd1), new OneToOneDependency(rdd2))) {
 
-  // TODO: FIX THIS.
-
-  @transient
-  var splits_ : Array[Split] = {
-    if (rdd1.splits.size != rdd2.splits.size) {
+  override def getPartitions: Array[Partition] = {
+    if (rdd1.partitions.size != rdd2.partitions.size) {
       throw new IllegalArgumentException("Can't zip RDDs with unequal numbers of partitions")
     }
-    val array = new Array[Split](rdd1.splits.size)
-    for (i <- 0 until rdd1.splits.size) {
-      array(i) = new ZippedSplit(i, rdd1, rdd2)
+    val array = new Array[Partition](rdd1.partitions.size)
+    for (i <- 0 until rdd1.partitions.size) {
+      array(i) = new ZippedPartition(i, rdd1, rdd2)
     }
     array
   }
 
-  override def getSplits = splits_
-
-  override def compute(s: Split, context: TaskContext): Iterator[(T, U)] = {
-    val (split1, split2) = s.asInstanceOf[ZippedSplit[T, U]].splits
-    rdd1.iterator(split1, context).zip(rdd2.iterator(split2, context))
+  override def compute(s: Partition, context: TaskContext): Iterator[(T, U)] = {
+    val (partition1, partition2) = s.asInstanceOf[ZippedPartition[T, U]].partitions
+    rdd1.iterator(partition1, context).zip(rdd2.iterator(partition2, context))
   }
 
-  override def getPreferredLocations(s: Split): Seq[String] = {
-    val (split1, split2) = s.asInstanceOf[ZippedSplit[T, U]].splits
-    rdd1.preferredLocations(split1).intersect(rdd2.preferredLocations(split2))
+  override def getPreferredLocations(s: Partition): Seq[String] = {
+    // Note that as number of slaves in cluster increase, the computed preferredLocations can become small : so we might need
+    // to look at alternate strategies to alleviate this. (If there are no (or very small number of preferred locations), we
+    // will end up transferred the blocks to 'any' node in the cluster - paying with n/w and cache cost.
+    // Maybe pick one or the other ? (so that atleast one block is local ?).
+    // Choose node which is hosting 'larger' of the blocks ?
+    // Look at rack locality to ensure chosen host is atleast rack local to both hosting node ?, etc (would be good to defer this if possible)
+    val (partition1, partition2) = s.asInstanceOf[ZippedPartition[T, U]].partitions
+    val pref1 = rdd1.preferredLocations(partition1)
+    val pref2 = rdd2.preferredLocations(partition2)
+
+    // exact match - instance local and host local.
+    val exactMatchLocations = pref1.intersect(pref2)
+
+    // remove locations which are already handled via exactMatchLocations, and intersect where both partitions are node local.
+    val otherNodeLocalPref1 = pref1.filter(loc => ! exactMatchLocations.contains(loc)).map(loc => Utils.parseHostPort(loc)._1)
+    val otherNodeLocalPref2 = pref2.filter(loc => ! exactMatchLocations.contains(loc)).map(loc => Utils.parseHostPort(loc)._1)
+    val otherNodeLocalLocations = otherNodeLocalPref1.intersect(otherNodeLocalPref2)
+
+
+    // Can have mix of instance local (hostPort) and node local (host) locations as preference !
+    exactMatchLocations ++ otherNodeLocalLocations
   }
 
   override def clearDependencies() {
-    splits_ = null
+    super.clearDependencies()
     rdd1 = null
     rdd2 = null
   }

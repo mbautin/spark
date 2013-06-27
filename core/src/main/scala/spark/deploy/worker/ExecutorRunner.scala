@@ -1,7 +1,7 @@
 package spark.deploy.worker
 
 import java.io._
-import spark.deploy.{ExecutorState, ExecutorStateChanged, JobDescription}
+import spark.deploy.{ExecutorState, ExecutorStateChanged, ApplicationDescription}
 import akka.actor.ActorRef
 import spark.{Utils, Logging}
 import java.net.{URI, URL}
@@ -14,19 +14,21 @@ import spark.deploy.ExecutorStateChanged
  * Manages the execution of one executor process.
  */
 private[spark] class ExecutorRunner(
-    val jobId: String,
+    val appId: String,
     val execId: Int,
-    val jobDesc: JobDescription,
+    val appDesc: ApplicationDescription,
     val cores: Int,
     val memory: Int,
     val worker: ActorRef,
     val workerId: String,
-    val hostname: String,
+    val hostPort: String,
     val sparkHome: File,
     val workDir: File)
   extends Logging {
 
-  val fullId = jobId + "/" + execId
+  Utils.checkHostPort(hostPort, "Expected hostport")
+
+  val fullId = appId + "/" + execId
   var workerThread: Thread = null
   var process: Process = null
   var shutdownHook: Thread = null
@@ -60,24 +62,24 @@ private[spark] class ExecutorRunner(
         process.destroy()
         process.waitFor()
       }
-      worker ! ExecutorStateChanged(jobId, execId, ExecutorState.KILLED, None, None)
+      worker ! ExecutorStateChanged(appId, execId, ExecutorState.KILLED, None, None)
       Runtime.getRuntime.removeShutdownHook(shutdownHook)
     }
   }
 
-  /** Replace variables such as {{SLAVEID}} and {{CORES}} in a command argument passed to us */
+  /** Replace variables such as {{EXECUTOR_ID}} and {{CORES}} in a command argument passed to us */
   def substituteVariables(argument: String): String = argument match {
-    case "{{SLAVEID}}" => workerId
-    case "{{HOSTNAME}}" => hostname
+    case "{{EXECUTOR_ID}}" => execId.toString
+    case "{{HOSTNAME}}" => Utils.parseHostPort(hostPort)._1
     case "{{CORES}}" => cores.toString
     case other => other
   }
 
   def buildCommandSeq(): Seq[String] = {
-    val command = jobDesc.command
-    val script = if (System.getProperty("os.name").startsWith("Windows")) "run.cmd" else "run";
+    val command = appDesc.command
+    val script = if (System.getProperty("os.name").startsWith("Windows")) "run.cmd" else "run"
     val runScript = new File(sparkHome, script).getCanonicalPath
-    Seq(runScript, command.mainClass) ++ command.arguments.map(substituteVariables)
+    Seq(runScript, command.mainClass) ++ (command.arguments ++ Seq(appId)).map(substituteVariables)
   }
 
   /** Spawn a thread that will redirect a given stream to a file */
@@ -96,30 +98,24 @@ private[spark] class ExecutorRunner(
   }
 
   /**
-   * Download and run the executor described in our JobDescription
+   * Download and run the executor described in our ApplicationDescription
    */
   def fetchAndRunExecutor() {
     try {
       // Create the executor's working directory
-      val executorDir = new File(workDir, jobId + "/" + execId)
+      val executorDir = new File(workDir, appId + "/" + execId)
       if (!executorDir.mkdirs()) {
         throw new IOException("Failed to create directory " + executorDir)
       }
-
-      // Download the files it depends on into it (disabled for now)
-      //for (url <- jobDesc.fileUrls) {
-      //  fetchFile(url, executorDir)
-      //}
 
       // Launch the process
       val command = buildCommandSeq()
       val builder = new ProcessBuilder(command: _*).directory(executorDir)
       val env = builder.environment()
-      for ((key, value) <- jobDesc.command.environment) {
+      for ((key, value) <- appDesc.command.environment) {
         env.put(key, value)
       }
-      env.put("SPARK_CORES", cores.toString)
-      env.put("SPARK_MEMORY", memory.toString)
+      env.put("SPARK_MEM", memory.toString + "m")
       // In case we are running this from within the Spark Shell, avoid creating a "scala"
       // parent process for the executor command
       env.put("SPARK_LAUNCH_WITH_SCALA", "0")
@@ -134,7 +130,7 @@ private[spark] class ExecutorRunner(
       // times on the same machine.
       val exitCode = process.waitFor()
       val message = "Command exited with code " + exitCode
-      worker ! ExecutorStateChanged(jobId, execId, ExecutorState.FAILED, Some(message),
+      worker ! ExecutorStateChanged(appId, execId, ExecutorState.FAILED, Some(message),
                                     Some(exitCode))
     } catch {
       case interrupted: InterruptedException =>
@@ -146,7 +142,7 @@ private[spark] class ExecutorRunner(
           process.destroy()
         }
         val message = e.getClass + ": " + e.getMessage
-        worker ! ExecutorStateChanged(jobId, execId, ExecutorState.FAILED, Some(message), None)
+        worker ! ExecutorStateChanged(appId, execId, ExecutorState.FAILED, Some(message), None)
       }
     }
   }

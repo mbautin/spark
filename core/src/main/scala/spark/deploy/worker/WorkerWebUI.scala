@@ -3,7 +3,7 @@ package spark.deploy.worker
 import akka.actor.{ActorRef, ActorSystem}
 import akka.dispatch.Await
 import akka.pattern.ask
-import akka.util.Timeout
+import akka.util.{Duration, Timeout}
 import akka.util.duration._
 import cc.spray.Directives
 import cc.spray.typeconversion.TwirlSupport._
@@ -12,13 +12,17 @@ import cc.spray.typeconversion.SprayJsonSupport._
 
 import spark.deploy.{WorkerState, RequestWorkerState}
 import spark.deploy.JsonProtocol._
+import java.io.File
 
+/**
+ * Web UI server for the standalone worker.
+ */
 private[spark]
-class WorkerWebUI(val actorSystem: ActorSystem, worker: ActorRef) extends Directives {
+class WorkerWebUI(val actorSystem: ActorSystem, worker: ActorRef, workDir: File) extends Directives {
   val RESOURCE_DIR = "spark/deploy/worker/webui"
   val STATIC_RESOURCE_DIR = "spark/deploy/static"
   
-  implicit val timeout = Timeout(1 seconds)
+  implicit val timeout = Timeout(Duration.create(System.getProperty("spark.akka.askTimeout", "10").toLong, "seconds"))
   
   val handler = {
     get {
@@ -38,9 +42,9 @@ class WorkerWebUI(val actorSystem: ActorSystem, worker: ActorRef) extends Direct
           }
       } ~
       path("log") {
-        parameters("jobId", "executorId", "logType") { (jobId, executorId, logType) =>
+        parameters("appId", "executorId", "logType") { (appId, executorId, logType) =>
           respondWithMediaType(cc.spray.http.MediaTypes.`text/plain`) {
-            getFromFileName("work/" + jobId + "/" + executorId + "/" + logType)
+            getFromFileName(workDir.getPath() + "/" + appId + "/" + executorId + "/" + logType)
           }
         }
       } ~
@@ -50,5 +54,4 @@ class WorkerWebUI(val actorSystem: ActorSystem, worker: ActorRef) extends Direct
       getFromResourceDirectory(RESOURCE_DIR)
     }
   }
-  
 }

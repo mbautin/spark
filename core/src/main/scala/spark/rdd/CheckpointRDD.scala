@@ -8,62 +8,69 @@ import org.apache.hadoop.util.ReflectionUtils
 import org.apache.hadoop.fs.Path
 import java.io.{File, IOException, EOFException}
 import java.text.NumberFormat
+import spark.deploy.SparkHadoopUtil
 
-private[spark] class CheckpointRDDSplit(idx: Int, val splitFile: String) extends Split {
-  override val index: Int = idx
-}
+private[spark] class CheckpointRDDPartition(val index: Int) extends Partition {}
 
 /**
  * This RDD represents a RDD checkpoint file (similar to HadoopRDD).
  */
 private[spark]
-class CheckpointRDD[T: ClassManifest](sc: SparkContext, checkpointPath: String)
+class CheckpointRDD[T: ClassManifest](sc: SparkContext, val checkpointPath: String)
   extends RDD[T](sc, Nil) {
 
-  @transient val path = new Path(checkpointPath)
-  @transient val fs = path.getFileSystem(new Configuration())
+  @transient val fs = new Path(checkpointPath).getFileSystem(sc.hadoopConfiguration)
 
-  @transient val splits_ : Array[Split] = {
-    val splitFiles = fs.listStatus(path).map(_.getPath.toString).filter(_.contains("part-")).sorted
-    splitFiles.zipWithIndex.map(x => new CheckpointRDDSplit(x._2, x._1)).toArray
+  override def getPartitions: Array[Partition] = {
+    val cpath = new Path(checkpointPath)
+    val numPartitions =
+    // listStatus can throw exception if path does not exist.
+    if (fs.exists(cpath)) {
+      val dirContents = fs.listStatus(cpath)
+      val partitionFiles = dirContents.map(_.getPath.toString).filter(_.contains("part-")).sorted
+      val numPart =  partitionFiles.size
+      if (numPart > 0 && (! partitionFiles(0).endsWith(CheckpointRDD.splitIdToFile(0)) ||
+          ! partitionFiles(numPart-1).endsWith(CheckpointRDD.splitIdToFile(numPart-1)))) {
+        throw new SparkException("Invalid checkpoint directory: " + checkpointPath)
+      }
+      numPart
+    } else 0
+
+    Array.tabulate(numPartitions)(i => new CheckpointRDDPartition(i))
   }
 
   checkpointData = Some(new RDDCheckpointData[T](this))
   checkpointData.get.cpFile = Some(checkpointPath)
 
-  override def getSplits = splits_
-
-  override def getPreferredLocations(split: Split): Seq[String] = {
-    val status = fs.getFileStatus(path)
+  override def getPreferredLocations(split: Partition): Seq[String] = {
+    val status = fs.getFileStatus(new Path(checkpointPath, CheckpointRDD.splitIdToFile(split.index)))
     val locations = fs.getFileBlockLocations(status, 0, status.getLen)
-    locations.firstOption.toList.flatMap(_.getHosts).filter(_ != "localhost")
+    locations.headOption.toList.flatMap(_.getHosts).filter(_ != "localhost")
   }
 
-  override def compute(split: Split, context: TaskContext): Iterator[T] = {
-    CheckpointRDD.readFromFile(split.asInstanceOf[CheckpointRDDSplit].splitFile, context)
+  override def compute(split: Partition, context: TaskContext): Iterator[T] = {
+    val file = new Path(checkpointPath, CheckpointRDD.splitIdToFile(split.index))
+    CheckpointRDD.readFromFile(file, context)
   }
 
   override def checkpoint() {
-    // Do nothing. Hadoop RDD should not be checkpointed.
+    // Do nothing. CheckpointRDD should not be checkpointed.
   }
 }
 
 private[spark] object CheckpointRDD extends Logging {
 
-  def splitIdToFileName(splitId: Int): String = {
-    val numfmt = NumberFormat.getInstance()
-    numfmt.setMinimumIntegerDigits(5)
-    numfmt.setGroupingUsed(false)
-    "part-"  + numfmt.format(splitId)
+  def splitIdToFile(splitId: Int): String = {
+    "part-%05d".format(splitId)
   }
 
-  def writeToFile[T](path: String, blockSize: Int = -1)(context: TaskContext, iterator: Iterator[T]) {
+  def writeToFile[T](path: String, blockSize: Int = -1)(ctx: TaskContext, iterator: Iterator[T]) {
     val outputDir = new Path(path)
-    val fs = outputDir.getFileSystem(new Configuration())
+    val fs = outputDir.getFileSystem(SparkHadoopUtil.newConfiguration())
 
-    val finalOutputName = splitIdToFileName(context.splitId)
+    val finalOutputName = splitIdToFile(ctx.splitId)
     val finalOutputPath = new Path(outputDir, finalOutputName)
-    val tempOutputPath = new Path(outputDir, "." + finalOutputName + "-attempt-" + context.attemptId)
+    val tempOutputPath = new Path(outputDir, "." + finalOutputName + "-attempt-" + ctx.attemptId)
 
     if (fs.exists(tempOutputPath)) {
       throw new IOException("Checkpoint failed: temporary path " +
@@ -83,22 +90,23 @@ private[spark] object CheckpointRDD extends Logging {
     serializeStream.close()
 
     if (!fs.rename(tempOutputPath, finalOutputPath)) {
-      if (!fs.delete(finalOutputPath, true)) {
-        throw new IOException("Checkpoint failed: failed to delete earlier output of task "
-          + context.attemptId)
-      }
-      if (!fs.rename(tempOutputPath, finalOutputPath)) {
+      if (!fs.exists(finalOutputPath)) {
+        logInfo("Deleting tempOutputPath " + tempOutputPath)
+        fs.delete(tempOutputPath, false)
         throw new IOException("Checkpoint failed: failed to save output of task: "
-          + context.attemptId)
+          + ctx.attemptId + " and final output path does not exist")
+      } else {
+        // Some other copy of this task must've finished before us and renamed it
+        logInfo("Final output path " + finalOutputPath + " already exists; not overwriting it")
+        fs.delete(tempOutputPath, false)
       }
     }
   }
 
-  def readFromFile[T](path: String, context: TaskContext): Iterator[T] = {
-    val inputPath = new Path(path)
-    val fs = inputPath.getFileSystem(new Configuration())
+  def readFromFile[T](path: Path, context: TaskContext): Iterator[T] = {
+    val fs = path.getFileSystem(SparkHadoopUtil.newConfiguration())
     val bufferSize = System.getProperty("spark.buffer.size", "65536").toInt
-    val fileInputStream = fs.open(inputPath, bufferSize)
+    val fileInputStream = fs.open(path, bufferSize)
     val serializer = SparkEnv.get.serializer.newInstance()
     val deserializeStream = serializer.deserializeStream(fileInputStream)
 
@@ -108,7 +116,7 @@ private[spark] object CheckpointRDD extends Logging {
     deserializeStream.asIterator.asInstanceOf[Iterator[T]]
   }
 
-  // Test whether CheckpointRDD generate expected number of splits despite
+  // Test whether CheckpointRDD generate expected number of partitions despite
   // each split file having multiple blocks. This needs to be run on a
   // cluster (mesos or standalone) using HDFS.
   def main(args: Array[String]) {
@@ -118,11 +126,11 @@ private[spark] object CheckpointRDD extends Logging {
     val sc = new SparkContext(cluster, "CheckpointRDD Test")
     val rdd = sc.makeRDD(1 to 10, 10).flatMap(x => 1 to 10000)
     val path = new Path(hdfsPath, "temp")
-    val fs = path.getFileSystem(new Configuration())
+    val fs = path.getFileSystem(SparkHadoopUtil.newConfiguration())
     sc.runJob(rdd, CheckpointRDD.writeToFile(path.toString, 1024) _)
     val cpRDD = new CheckpointRDD[Int](sc, path.toString)
-    assert(cpRDD.splits.length == rdd.splits.length, "Number of splits is not the same")
-    assert(cpRDD.collect.toList == rdd.collect.toList, "Data of splits not the same")
-    fs.delete(path)
+    assert(cpRDD.partitions.length == rdd.partitions.length, "Number of partitions is not the same")
+    assert(cpRDD.collect.toList == rdd.collect.toList, "Data of partitions not the same")
+    fs.delete(path, true)
   }
 }

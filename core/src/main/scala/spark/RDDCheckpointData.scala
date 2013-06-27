@@ -1,6 +1,7 @@
 package spark
 
 import org.apache.hadoop.fs.Path
+import org.apache.hadoop.conf.Configuration
 import rdd.{CheckpointRDD, CoalescedRDD}
 import scheduler.{ResultTask, ShuffleMapTask}
 
@@ -16,11 +17,11 @@ private[spark] object CheckpointState extends Enumeration {
 /**
  * This class contains all the information related to RDD checkpointing. Each instance of this class
  * is associated with a RDD. It manages process of checkpointing of the associated RDD, as well as,
- * manages the post-checkpoint state by providing the updated splits, iterator and preferred locations
+ * manages the post-checkpoint state by providing the updated partitions, iterator and preferred locations
  * of the checkpointed RDD.
  */
 private[spark] class RDDCheckpointData[T: ClassManifest](rdd: RDD[T])
-extends Logging with Serializable {
+  extends Logging with Serializable {
 
   import CheckpointState._
 
@@ -31,7 +32,7 @@ extends Logging with Serializable {
   @transient var cpFile: Option[String] = None
 
   // The CheckpointRDD created from the checkpoint file, that is, the new parent the associated RDD.
-  @transient var cpRDD: Option[RDD[T]] = None
+  var cpRDD: Option[RDD[T]] = None
 
   // Mark the RDD for checkpointing
   def markForCheckpoint() {
@@ -41,12 +42,12 @@ extends Logging with Serializable {
   }
 
   // Is the RDD already checkpointed
-  def isCheckpointed(): Boolean = {
+  def isCheckpointed: Boolean = {
     RDDCheckpointData.synchronized { cpState == Checkpointed }
   }
 
   // Get the file to which this RDD was checkpointed to as an Option
-  def getCheckpointFile(): Option[String] = {
+  def getCheckpointFile: Option[String] = {
     RDDCheckpointData.synchronized { cpFile }
   }
 
@@ -62,16 +63,22 @@ extends Logging with Serializable {
       }
     }
 
-    // Save to file, and reload it as an RDD
-    val path = new Path(rdd.context.checkpointDir.get, "rdd-" + rdd.id).toString
-    rdd.context.runJob(rdd, CheckpointRDD.writeToFile(path) _)
-    val newRDD = new CheckpointRDD[T](rdd.context, path)
+    // Create the output path for the checkpoint
+    val path = new Path(rdd.context.checkpointDir.get, "rdd-" + rdd.id)
+    val fs = path.getFileSystem(new Configuration())
+    if (!fs.mkdirs(path)) {
+      throw new SparkException("Failed to create checkpoint path " + path)
+    }
 
-    // Change the dependencies and splits of the RDD
+    // Save to file, and reload it as an RDD
+    rdd.context.runJob(rdd, CheckpointRDD.writeToFile(path.toString) _)
+    val newRDD = new CheckpointRDD[T](rdd.context, path.toString)
+
+    // Change the dependencies and partitions of the RDD
     RDDCheckpointData.synchronized {
-      cpFile = Some(path)
+      cpFile = Some(path.toString)
       cpRDD = Some(newRDD)
-      rdd.changeDependencies(newRDD)
+      rdd.markCheckpointed(newRDD)   // Update the RDD's dependencies and partitions
       cpState = Checkpointed
       RDDCheckpointData.clearTaskCaches()
       logInfo("Done checkpointing RDD " + rdd.id + ", new parent is RDD " + newRDD.id)
@@ -79,21 +86,22 @@ extends Logging with Serializable {
   }
 
   // Get preferred location of a split after checkpointing
-  def getPreferredLocations(split: Split) = {
+  def getPreferredLocations(split: Partition): Seq[String] = {
     RDDCheckpointData.synchronized {
       cpRDD.get.preferredLocations(split)
     }
   }
 
-  def getSplits: Array[Split] = {
+  def getPartitions: Array[Partition] = {
     RDDCheckpointData.synchronized {
-      cpRDD.get.splits
+      cpRDD.get.partitions
     }
   }
 
-  // Get iterator. This is called at the worker nodes.
-  def iterator(split: Split, context: TaskContext): Iterator[T] = {
-    rdd.firstParent[T].iterator(split, context)
+  def checkpointRDD: Option[RDD[T]] = {
+    RDDCheckpointData.synchronized {
+      cpRDD
+    }
   }
 }
 
