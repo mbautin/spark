@@ -1,19 +1,19 @@
 package spark.rdd
 
-import spark.{Dependency, OneToOneDependency, NarrowDependency, RDD, Split, TaskContext}
+import spark.{Dependency, OneToOneDependency, NarrowDependency, RDD, Partition, TaskContext}
 import java.io.{ObjectOutputStream, IOException}
 
-private[spark] case class CoalescedRDDSplit(
+private[spark] case class CoalescedRDDPartition(
     index: Int,
     @transient rdd: RDD[_],
     parentsIndices: Array[Int]
-  ) extends Split {
-  var parents: Seq[Split] = parentsIndices.map(rdd.splits(_))
+  ) extends Partition {
+  var parents: Seq[Partition] = parentsIndices.map(rdd.partitions(_))
 
   @throws(classOf[IOException])
   private def writeObject(oos: ObjectOutputStream) {
     // Update the reference to parent split at the time of task serialization
-    parents = parentsIndices.map(rdd.splits(_))
+    parents = parentsIndices.map(rdd.partitions(_))
     oos.defaultWriteObject()
   }
 }
@@ -27,43 +27,38 @@ private[spark] case class CoalescedRDDSplit(
  * or to avoid having a large number of small tasks when processing a directory with many files.
  */
 class CoalescedRDD[T: ClassManifest](
-    var prev: RDD[T],
+    @transient var prev: RDD[T],
     maxPartitions: Int)
-  extends RDD[T](prev.context, Nil) {  // Nil, so the dependencies_ var does not refer to parent RDDs
+  extends RDD[T](prev.context, Nil) {  // Nil since we implement getDependencies
 
-  @transient var splits_ : Array[Split] = {
-    val prevSplits = prev.splits
+  override def getPartitions: Array[Partition] = {
+    val prevSplits = prev.partitions
     if (prevSplits.length < maxPartitions) {
-      prevSplits.map(_.index).map{idx => new CoalescedRDDSplit(idx, prev, Array(idx)) }
+      prevSplits.map(_.index).map{idx => new CoalescedRDDPartition(idx, prev, Array(idx)) }
     } else {
       (0 until maxPartitions).map { i =>
-        val rangeStart = (i * prevSplits.length) / maxPartitions
-        val rangeEnd = ((i + 1) * prevSplits.length) / maxPartitions
-        new CoalescedRDDSplit(i, prev, (rangeStart until rangeEnd).toArray)
+        val rangeStart = ((i.toLong * prevSplits.length) / maxPartitions).toInt
+        val rangeEnd = (((i.toLong + 1) * prevSplits.length) / maxPartitions).toInt
+        new CoalescedRDDPartition(i, prev, (rangeStart until rangeEnd).toArray)
       }.toArray
     }
   }
 
-  override def getSplits = splits_
-
-  override def compute(split: Split, context: TaskContext): Iterator[T] = {
-    split.asInstanceOf[CoalescedRDDSplit].parents.iterator.flatMap { parentSplit =>
+  override def compute(split: Partition, context: TaskContext): Iterator[T] = {
+    split.asInstanceOf[CoalescedRDDPartition].parents.iterator.flatMap { parentSplit =>
       firstParent[T].iterator(parentSplit, context)
     }
   }
 
-  var deps_ : List[Dependency[_]] = List(
-    new NarrowDependency(prev) {
+  override def getDependencies: Seq[Dependency[_]] = {
+    Seq(new NarrowDependency(prev) {
       def getParents(id: Int): Seq[Int] =
-        splits(id).asInstanceOf[CoalescedRDDSplit].parentsIndices
-    }
-  )
-
-  override def getDependencies() = deps_
+        partitions(id).asInstanceOf[CoalescedRDDPartition].parentsIndices
+    })
+  }
 
   override def clearDependencies() {
-    deps_ = Nil
-    splits_ = null
+    super.clearDependencies()
     prev = null
   }
 }

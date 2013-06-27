@@ -1,25 +1,12 @@
 package spark
 
 import org.scalatest.FunSuite
-import org.scalatest.BeforeAndAfter
-
 import scala.collection.mutable.ArrayBuffer
-
 import SparkContext._
+import spark.util.StatCounter
+import scala.math.abs
 
-class PartitioningSuite extends FunSuite with BeforeAndAfter {
-  
-  var sc: SparkContext = _
-  
-  after {
-    if(sc != null) {
-      sc.stop()
-      sc = null
-    }
-    // To avoid Akka rebinding to the same port, since it doesn't unbind immediately on shutdown
-    System.clearProperty("spark.master.port")
-  }
-  
+class PartitioningSuite extends FunSuite with LocalSparkContext {
   
   test("HashPartitioner equality") {
     val p2 = new HashPartitioner(2)
@@ -97,10 +84,10 @@ class PartitioningSuite extends FunSuite with BeforeAndAfter {
     assert(grouped4.groupByKey(3).partitioner !=  grouped4.partitioner)
     assert(grouped4.groupByKey(4).partitioner === grouped4.partitioner)
 
-    assert(grouped2.join(grouped4).partitioner === grouped2.partitioner)
-    assert(grouped2.leftOuterJoin(grouped4).partitioner === grouped2.partitioner)
-    assert(grouped2.rightOuterJoin(grouped4).partitioner === grouped2.partitioner)
-    assert(grouped2.cogroup(grouped4).partitioner === grouped2.partitioner)
+    assert(grouped2.join(grouped4).partitioner === grouped4.partitioner)
+    assert(grouped2.leftOuterJoin(grouped4).partitioner === grouped4.partitioner)
+    assert(grouped2.rightOuterJoin(grouped4).partitioner === grouped4.partitioner)
+    assert(grouped2.cogroup(grouped4).partitioner === grouped4.partitioner)
 
     assert(grouped2.join(reduced2).partitioner === grouped2.partitioner)
     assert(grouped2.leftOuterJoin(reduced2).partitioner === grouped2.partitioner)
@@ -132,5 +119,22 @@ class PartitioningSuite extends FunSuite with BeforeAndAfter {
     assert(intercept[SparkException]{ arrPairs.cogroup(arrPairs) }.getMessage.contains("array"))
     assert(intercept[SparkException]{ arrPairs.reduceByKeyLocally(_ + _) }.getMessage.contains("array"))
     assert(intercept[SparkException]{ arrPairs.reduceByKey(_ + _) }.getMessage.contains("array"))
+  }
+  
+  test("Zero-length partitions should be correctly handled") {
+    // Create RDD with some consecutive empty partitions (including the "first" one)
+    sc = new SparkContext("local", "test")
+    val rdd: RDD[Double] = sc
+        .parallelize(Array(-1.0, -1.0, -1.0, -1.0, 2.0, 4.0, -1.0, -1.0), 8)
+        .filter(_ >= 0.0)
+    
+    // Run the partitions, including the consecutive empty ones, through StatCounter
+    val stats: StatCounter = rdd.stats();
+    assert(abs(6.0 - stats.sum) < 0.01);
+    assert(abs(6.0/2 - rdd.mean) < 0.01);
+    assert(abs(1.0 - rdd.variance) < 0.01);
+    assert(abs(1.0 - rdd.stdev) < 0.01);
+    
+    // Add other tests here for classes that should be able to handle empty partitions correctly
   }
 }

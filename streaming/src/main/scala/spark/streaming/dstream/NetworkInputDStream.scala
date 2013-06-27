@@ -20,7 +20,7 @@ import java.util.concurrent.ArrayBlockingQueue
 /**
  * Abstract class for defining any InputDStream that has to start a receiver on worker
  * nodes to receive external data. Specific implementations of NetworkInputDStream must
- * define the createReceiver() function that creates the receiver object of type
+ * define the getReceiver() function that gets the receiver object of type
  * [[spark.streaming.dstream.NetworkReceiver]] that will be sent to the workers to receive
  * data.
  * @param ssc_ Streaming context that will execute this input stream
@@ -34,11 +34,11 @@ abstract class NetworkInputDStream[T: ClassManifest](@transient ssc_ : Streaming
   val id = ssc.getNewNetworkStreamId()
 
   /**
-   * Creates the receiver object that will be sent to the worker nodes
+   * Gets the receiver object that will be sent to the worker nodes
    * to receive data. This method needs to defined by any specific implementation
    * of a NetworkInputDStream.
    */
-  def createReceiver(): NetworkReceiver[T]
+  def getReceiver(): NetworkReceiver[T]
 
   // Nothing to start or stop as both taken care of by the NetworkInputTracker.
   def start() {}
@@ -46,8 +46,15 @@ abstract class NetworkInputDStream[T: ClassManifest](@transient ssc_ : Streaming
   def stop() {}
 
   override def compute(validTime: Time): Option[RDD[T]] = {
-    val blockIds = ssc.networkInputTracker.getBlockIds(id, validTime)    
-    Some(new BlockRDD[T](ssc.sc, blockIds))
+    // If this is called for any time before the start time of the context,
+    // then this returns an empty RDD. This may happen when recovering from a
+    // master failure
+    if (validTime >= graph.startTime) {
+      val blockIds = ssc.networkInputTracker.getBlockIds(id, validTime)
+      Some(new BlockRDD[T](ssc.sc, blockIds))
+    } else {
+      Some(new BlockRDD[T](ssc.sc, Array[String]()))
+    }
   }
 }
 
@@ -153,8 +160,8 @@ abstract class NetworkReceiver[T: ClassManifest]() extends Serializable with Log
   /** A helper actor that communicates with the NetworkInputTracker */
   private class NetworkReceiverActor extends Actor {
     logInfo("Attempting to register with tracker")
-    val ip = System.getProperty("spark.master.host", "localhost")
-    val port = System.getProperty("spark.master.port", "7077").toInt
+    val ip = System.getProperty("spark.driver.host", "localhost")
+    val port = System.getProperty("spark.driver.port", "7077").toInt
     val url = "akka://spark@%s:%s/user/NetworkInputTracker".format(ip, port)
     val tracker = env.actorSystem.actorFor(url)
     val timeout = 5.seconds

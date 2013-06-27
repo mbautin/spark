@@ -1,10 +1,11 @@
 package spark.api.java
 
-import java.util.{List => JList}
+import java.util.{List => JList, Comparator}
 import scala.Tuple2
 import scala.collection.JavaConversions._
 
-import spark.{SparkContext, Split, RDD, TaskContext}
+import org.apache.hadoop.io.compress.CompressionCodec
+import spark.{SparkContext, Partition, RDD, TaskContext}
 import spark.api.java.JavaPairRDD._
 import spark.api.java.function.{Function2 => JFunction2, Function => JFunction, _}
 import spark.partial.{PartialResult, BoundedDouble}
@@ -20,7 +21,7 @@ trait JavaRDDLike[T, This <: JavaRDDLike[T, This]] extends Serializable {
   def rdd: RDD[T]
 
   /** Set of partitions in this RDD. */
-  def splits: JList[Split] = new java.util.ArrayList(rdd.splits.toSeq)
+  def splits: JList[Partition] = new java.util.ArrayList(rdd.partitions.toSeq)
 
   /** The [[spark.SparkContext]] that this RDD was created on. */
   def context: SparkContext = rdd.context
@@ -36,7 +37,7 @@ trait JavaRDDLike[T, This <: JavaRDDLike[T, This]] extends Serializable {
    * This should ''not'' be called by users directly, but is available for implementors of custom
    * subclasses of RDD.
    */
-  def iterator(split: Split, taskContext: TaskContext): java.util.Iterator[T] =
+  def iterator(split: Partition, taskContext: TaskContext): java.util.Iterator[T] =
     asJavaIterator(rdd.iterator(split, taskContext))
 
   // Transformations (return a new RDD)
@@ -85,10 +86,10 @@ trait JavaRDDLike[T, This <: JavaRDDLike[T, This]] extends Serializable {
    *  Return a new RDD by first applying a function to all elements of this
    *  RDD, and then flattening the results.
    */
-  def flatMap[K, V](f: PairFlatMapFunction[T, K, V]): JavaPairRDD[K, V] = {
+  def flatMap[K2, V2](f: PairFlatMapFunction[T, K2, V2]): JavaPairRDD[K2, V2] = {
     import scala.collection.JavaConverters._
     def fn = (x: T) => f.apply(x).asScala
-    def cm = implicitly[ClassManifest[AnyRef]].asInstanceOf[ClassManifest[Tuple2[K, V]]]
+    def cm = implicitly[ClassManifest[AnyRef]].asInstanceOf[ClassManifest[Tuple2[K2, V2]]]
     JavaPairRDD.fromRDD(rdd.flatMap(fn)(cm))(f.keyType(), f.valueType())
   }
 
@@ -111,8 +112,8 @@ trait JavaRDDLike[T, This <: JavaRDDLike[T, This]] extends Serializable {
   /**
    * Return a new RDD by applying a function to each partition of this RDD.
    */
-  def mapPartitions[K, V](f: PairFlatMapFunction[java.util.Iterator[T], K, V]):
-  JavaPairRDD[K, V] = {
+  def mapPartitions[K2, V2](f: PairFlatMapFunction[java.util.Iterator[T], K2, V2]):
+  JavaPairRDD[K2, V2] = {
     def fn = (x: Iterator[T]) => asScalaIterator(f.apply(asJavaIterator(x)).iterator())
     JavaPairRDD.fromRDD(rdd.mapPartitions(fn))(f.keyType(), f.valueType())
   }
@@ -147,12 +148,12 @@ trait JavaRDDLike[T, This <: JavaRDDLike[T, This]] extends Serializable {
    * Return an RDD of grouped elements. Each group consists of a key and a sequence of elements
    * mapping to that key.
    */
-  def groupBy[K](f: JFunction[T, K], numSplits: Int): JavaPairRDD[K, JList[T]] = {
+  def groupBy[K](f: JFunction[T, K], numPartitions: Int): JavaPairRDD[K, JList[T]] = {
     implicit val kcm: ClassManifest[K] =
       implicitly[ClassManifest[AnyRef]].asInstanceOf[ClassManifest[K]]
     implicit val vcm: ClassManifest[JList[T]] =
       implicitly[ClassManifest[AnyRef]].asInstanceOf[ClassManifest[JList[T]]]
-    JavaPairRDD.fromRDD(groupByResultToJava(rdd.groupBy(f, numSplits)(f.returnType)))(kcm, vcm)
+    JavaPairRDD.fromRDD(groupByResultToJava(rdd.groupBy(f, numPartitions)(f.returnType)))(kcm, vcm)
   }
 
   /**
@@ -182,6 +183,21 @@ trait JavaRDDLike[T, This <: JavaRDDLike[T, This]] extends Serializable {
     JavaPairRDD.fromRDD(rdd.zip(other.rdd)(other.classManifest))(classManifest, other.classManifest)
   }
 
+  /**
+   * Zip this RDD's partitions with one (or more) RDD(s) and return a new RDD by
+   * applying a function to the zipped partitions. Assumes that all the RDDs have the
+   * *same number of partitions*, but does *not* require them to have the same number
+   * of elements in each partition.
+   */
+  def zipPartitions[U, V](
+      f: FlatMapFunction2[java.util.Iterator[T], java.util.Iterator[U], V],
+      other: JavaRDDLike[U, _]): JavaRDD[V] = {
+    def fn = (x: Iterator[T], y: Iterator[U]) => asScalaIterator(
+      f.apply(asJavaIterator(x), asJavaIterator(y)).iterator())
+    JavaRDD.fromRDD(
+      rdd.zipPartitions(fn, other.rdd)(other.classManifest, f.elementType()))(f.elementType())
+  }
+
   // Actions (launch a job to return a value to the user program)
 
   /**
@@ -202,7 +218,7 @@ trait JavaRDDLike[T, This <: JavaRDDLike[T, This]] extends Serializable {
   }
 
   /**
-   * Reduces the elements of this RDD using the specified associative binary operator.
+   * Reduces the elements of this RDD using the specified commutative and associative binary operator.
    */
   def reduce(f: JFunction2[T, T, T]): T = rdd.reduce(f)
 
@@ -295,6 +311,13 @@ trait JavaRDDLike[T, This <: JavaRDDLike[T, This]] extends Serializable {
    */
   def saveAsTextFile(path: String) = rdd.saveAsTextFile(path)
 
+
+  /**
+   * Save this RDD as a compressed text file, using string representations of elements.
+   */
+  def saveAsTextFile(path: String, codec: Class[_ <: CompressionCodec]) =
+    rdd.saveAsTextFile(path, codec)
+
   /**
    * Save this RDD as a SequenceFile of serialized objects.
    */
@@ -320,7 +343,7 @@ trait JavaRDDLike[T, This <: JavaRDDLike[T, This]] extends Serializable {
   /**
    * Return whether this RDD has been checkpointed or not
    */
-  def isCheckpointed(): Boolean = rdd.isCheckpointed()
+  def isCheckpointed: Boolean = rdd.isCheckpointed
 
   /**
    * Gets the name of the file to which this RDD was checkpointed
@@ -330,5 +353,35 @@ trait JavaRDDLike[T, This <: JavaRDDLike[T, This]] extends Serializable {
       case Some(file) => Optional.of(file)
       case _ => Optional.absent()
     }
+  }
+
+  /** A description of this RDD and its recursive dependencies for debugging. */
+  def toDebugString(): String = {
+    rdd.toDebugString
+  }
+
+  /**
+   * Returns the top K elements from this RDD as defined by
+   * the specified Comparator[T].
+   * @param num the number of top elements to return
+   * @param comp the comparator that defines the order
+   * @return an array of top elements
+   */
+  def top(num: Int, comp: Comparator[T]): JList[T] = {
+    import scala.collection.JavaConversions._
+    val topElems = rdd.top(num)(Ordering.comparatorToOrdering(comp))
+    val arr: java.util.Collection[T] = topElems.toSeq
+    new java.util.ArrayList(arr)
+  }
+
+  /**
+   * Returns the top K elements from this RDD using the
+   * natural ordering for T.
+   * @param num the number of top elements to return
+   * @return an array of top elements
+   */
+  def top(num: Int): JList[T] = {
+    val comp = com.google.common.collect.Ordering.natural().asInstanceOf[Comparator[T]]
+    top(num, comp)
   }
 }

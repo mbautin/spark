@@ -3,6 +3,7 @@ package spark.util
 import java.util.concurrent.ConcurrentHashMap
 import scala.collection.JavaConversions
 import scala.collection.mutable.Map
+import spark.scheduler.MapStatus
 
 /**
  * This is a custom implementation of scala.collection.mutable.Map which stores the insertion
@@ -42,6 +43,13 @@ class TimeStampedHashMap[A, B] extends Map[A, B]() with spark.Logging {
     this
   }
 
+  // Should we return previous value directly or as Option ?
+  def putIfAbsent(key: A, value: B): Option[B] = {
+    val prev = internalMap.putIfAbsent(key, (value, currentTime))
+    if (prev != null) Some(prev._1) else None
+  }
+
+
   override def -= (key: A): this.type = {
     internalMap.remove(key)
     this
@@ -63,9 +71,9 @@ class TimeStampedHashMap[A, B] extends Map[A, B]() with spark.Logging {
 
   override def empty: Map[A, B] = new TimeStampedHashMap[A, B]()
 
-  override def size(): Int = internalMap.size()
+  override def size: Int = internalMap.size
 
-  override def foreach[U](f: ((A, B)) => U): Unit = {
+  override def foreach[U](f: ((A, B)) => U) {
     val iterator = internalMap.entrySet().iterator()
     while(iterator.hasNext) {
       val entry = iterator.next()

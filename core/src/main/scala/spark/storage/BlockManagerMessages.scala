@@ -16,6 +16,9 @@ sealed trait ToBlockManagerSlave
 private[spark]
 case class RemoveBlock(blockId: String) extends ToBlockManagerSlave
 
+// Remove all blocks belonging to a specific RDD.
+private[spark] case class RemoveRdd(rddId: Int) extends ToBlockManagerSlave
+
 
 //////////////////////////////////////////////////////////////////////////////////
 // Messages from slaves to the master.
@@ -49,18 +52,16 @@ class UpdateBlockInfo(
     blockManagerId.writeExternal(out)
     out.writeUTF(blockId)
     storageLevel.writeExternal(out)
-    out.writeInt(memSize.toInt)
-    out.writeInt(diskSize.toInt)
+    out.writeLong(memSize)
+    out.writeLong(diskSize)
   }
 
   override def readExternal(in: ObjectInput) {
-    blockManagerId = new BlockManagerId()
-    blockManagerId.readExternal(in)
+    blockManagerId = BlockManagerId(in)
     blockId = in.readUTF()
-    storageLevel = new StorageLevel()
-    storageLevel.readExternal(in)
-    memSize = in.readInt()
-    diskSize = in.readInt()
+    storageLevel = StorageLevel(in)
+    memSize = in.readLong()
+    diskSize = in.readLong()
   }
 }
 
@@ -90,7 +91,7 @@ private[spark]
 case class GetPeers(blockManagerId: BlockManagerId, size: Int) extends ToBlockManagerMaster
 
 private[spark]
-case class RemoveHost(host: String) extends ToBlockManagerMaster
+case class RemoveExecutor(execId: String) extends ToBlockManagerMaster
 
 private[spark]
 case object StopBlockManagerMaster extends ToBlockManagerMaster
@@ -100,3 +101,6 @@ case object GetMemoryStatus extends ToBlockManagerMaster
 
 private[spark]
 case object ExpireDeadHosts extends ToBlockManagerMaster
+
+private[spark]
+case object GetStorageStatus extends ToBlockManagerMaster

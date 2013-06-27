@@ -1,21 +1,9 @@
 package spark
 
 import org.scalatest.FunSuite
-import org.scalatest.BeforeAndAfter
 import SparkContext._
 
-class PipedRDDSuite extends FunSuite with BeforeAndAfter {
-  
-  var sc: SparkContext = _
-  
-  after {
-    if (sc != null) {
-      sc.stop()
-      sc = null
-    }
-    // To avoid Akka rebinding to the same port, since it doesn't unbind immediately on shutdown
-    System.clearProperty("spark.master.port")
-  }
+class PipedRDDSuite extends FunSuite with LocalSparkContext {
   
   test("basic pipe") {
     sc = new SparkContext("local", "test")
@@ -29,6 +17,45 @@ class PipedRDDSuite extends FunSuite with BeforeAndAfter {
     assert(c(1) === "2")
     assert(c(2) === "3")
     assert(c(3) === "4")
+  }
+
+  test("advanced pipe") {
+    sc = new SparkContext("local", "test")
+    val nums = sc.makeRDD(Array(1, 2, 3, 4), 2)
+    val bl = sc.broadcast(List("0"))
+
+    val piped = nums.pipe(Seq("cat"), 
+      Map[String, String](), 
+      (f: String => Unit) => {bl.value.map(f(_));f("\u0001")},
+      (i:Int, f: String=> Unit) => f(i + "_"))
+
+    val c = piped.collect()
+
+    assert(c.size === 8)
+    assert(c(0) === "0")
+    assert(c(1) === "\u0001")
+    assert(c(2) === "1_")
+    assert(c(3) === "2_")
+    assert(c(4) === "0")
+    assert(c(5) === "\u0001")
+    assert(c(6) === "3_")
+    assert(c(7) === "4_")
+
+    val nums1 = sc.makeRDD(Array("a\t1", "b\t2", "a\t3", "b\t4"), 2)
+    val d = nums1.groupBy(str=>str.split("\t")(0)).
+      pipe(Seq("cat"), 
+           Map[String, String](), 
+           (f: String => Unit) => {bl.value.map(f(_));f("\u0001")},
+           (i:Tuple2[String, Seq[String]], f: String=> Unit) => {for (e <- i._2){ f(e + "_")}}).collect()
+    assert(d.size === 8)
+    assert(d(0) === "0")
+    assert(d(1) === "\u0001")
+    assert(d(2) === "b\t2_")
+    assert(d(3) === "b\t4_")
+    assert(d(4) === "0")
+    assert(d(5) === "\u0001")
+    assert(d(6) === "a\t1_")
+    assert(d(7) === "a\t3_")
   }
 
   test("pipe with env variable") {
@@ -51,5 +78,3 @@ class PipedRDDSuite extends FunSuite with BeforeAndAfter {
   }
 
 }
-
-

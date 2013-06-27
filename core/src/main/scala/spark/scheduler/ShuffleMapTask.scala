@@ -13,8 +13,10 @@ import com.ning.compress.lzf.LZFInputStream
 import com.ning.compress.lzf.LZFOutputStream
 
 import spark._
+import spark.executor.ShuffleWriteMetrics
 import spark.storage._
-import util.{TimeStampedHashMap, MetadataCleaner}
+import spark.util.{TimeStampedHashMap, MetadataCleaner}
+
 
 private[spark] object ShuffleMapTask {
 
@@ -32,7 +34,7 @@ private[spark] object ShuffleMapTask {
         return old
       } else {
         val out = new ByteArrayOutputStream
-        val ser = SparkEnv.get.closureSerializer.newInstance
+        val ser = SparkEnv.get.closureSerializer.newInstance()
         val objOut = ser.serializeStream(new GZIPOutputStream(out))
         objOut.writeObject(rdd)
         objOut.writeObject(dep)
@@ -48,7 +50,7 @@ private[spark] object ShuffleMapTask {
     synchronized {
       val loader = Thread.currentThread.getContextClassLoader
       val in = new GZIPInputStream(new ByteArrayInputStream(bytes))
-      val ser = SparkEnv.get.closureSerializer.newInstance
+      val ser = SparkEnv.get.closureSerializer.newInstance()
       val objIn = ser.deserializeStream(in)
       val rdd = objIn.readObject().asInstanceOf[RDD[_]]
       val dep = objIn.readObject().asInstanceOf[ShuffleDependency[_,_]]
@@ -76,22 +78,29 @@ private[spark] class ShuffleMapTask(
     var rdd: RDD[_],
     var dep: ShuffleDependency[_,_],
     var partition: Int,
-    @transient var locs: Seq[String])
+    @transient private var locs: Seq[String])
   extends Task[MapStatus](stageId)
   with Externalizable
   with Logging {
 
-  def this() = this(0, null, null, 0, null)
+  protected def this() = this(0, null, null, 0, null)
+
+  @transient private val preferredLocs: Seq[String] = if (locs == null) Nil else locs.toSet.toSeq
+
+  {
+    // DEBUG code
+    preferredLocs.foreach (hostPort => Utils.checkHost(Utils.parseHostPort(hostPort)._1, "preferredLocs : " + preferredLocs))
+  }
 
   var split = if (rdd == null) {
     null
   } else {
-    rdd.splits(partition)
+    rdd.partitions(partition)
   }
 
   override def writeExternal(out: ObjectOutput) {
     RDDCheckpointData.synchronized {
-      split = rdd.splits(partition)
+      split = rdd.partitions(partition)
       out.writeInt(stageId)
       val bytes = ShuffleMapTask.serializeInfo(stageId, rdd, dep)
       out.writeInt(bytes.length)
@@ -112,42 +121,66 @@ private[spark] class ShuffleMapTask(
     dep = dep_
     partition = in.readInt()
     generation = in.readLong()
-    split = in.readObject().asInstanceOf[Split]
+    split = in.readObject().asInstanceOf[Partition]
   }
 
   override def run(attemptId: Long): MapStatus = {
     val numOutputSplits = dep.partitioner.numPartitions
-    val partitioner = dep.partitioner
 
     val taskContext = new TaskContext(stageId, partition, attemptId)
-
-    // Partition the map output.
-    val buckets = Array.fill(numOutputSplits)(new ArrayBuffer[(Any, Any)])
-    for (elem <- rdd.iterator(split, taskContext)) {
-      val pair = elem.asInstanceOf[(Any, Any)]
-      val bucketId = partitioner.getPartition(pair._1)
-      buckets(bucketId) += pair
-    }
-    val bucketIterators = buckets.map(_.iterator)
-
-    val compressedSizes = new Array[Byte](numOutputSplits)
+    metrics = Some(taskContext.taskMetrics)
 
     val blockManager = SparkEnv.get.blockManager
-    for (i <- 0 until numOutputSplits) {
-      val blockId = "shuffle_" + dep.shuffleId + "_" + partition + "_" + i
-      // Get a Scala iterator from Java map
-      val iter: Iterator[(Any, Any)] = bucketIterators(i)
-      val size = blockManager.put(blockId, iter, StorageLevel.DISK_ONLY, false)
-      compressedSizes(i) = MapOutputTracker.compressSize(size)
+    var shuffle: ShuffleBlocks = null
+    var buckets: ShuffleWriterGroup = null
+
+    try {
+      // Obtain all the block writers for shuffle blocks.
+      val ser = SparkEnv.get.serializerManager.get(dep.serializerClass)
+      shuffle = blockManager.shuffleBlockManager.forShuffle(dep.shuffleId, numOutputSplits, ser)
+      buckets = shuffle.acquireWriters(partition)
+
+      // Write the map output to its associated buckets.
+      for (elem <- rdd.iterator(split, taskContext)) {
+        val pair = elem.asInstanceOf[(Any, Any)]
+        val bucketId = dep.partitioner.getPartition(pair._1)
+        buckets.writers(bucketId).write(pair)
+      }
+
+      // Commit the writes. Get the size of each bucket block (total block size).
+      var totalBytes = 0L
+      val compressedSizes: Array[Byte] = buckets.writers.map { writer: BlockObjectWriter =>
+        writer.commit()
+        writer.close()
+        val size = writer.size()
+        totalBytes += size
+        MapOutputTracker.compressSize(size)
+      }
+
+      // Update shuffle metrics.
+      val shuffleMetrics = new ShuffleWriteMetrics
+      shuffleMetrics.shuffleBytesWritten = totalBytes
+      metrics.get.shuffleWriteMetrics = Some(shuffleMetrics)
+
+      return new MapStatus(blockManager.blockManagerId, compressedSizes)
+    } catch { case e: Exception =>
+      // If there is an exception from running the task, revert the partial writes
+      // and throw the exception upstream to Spark.
+      if (buckets != null) {
+        buckets.writers.foreach(_.revertPartialWrites())
+      }
+      throw e
+    } finally {
+      // Release the writers back to the shuffle block manager.
+      if (shuffle != null && buckets != null) {
+        shuffle.releaseWriters(buckets)
+      }
+      // Execute the callbacks on task completion.
+      taskContext.executeOnCompleteCallbacks()
     }
-
-    // Execute the callbacks on task completion.
-    taskContext.executeOnCompleteCallbacks()
-
-    return new MapStatus(blockManager.blockManagerId, compressedSizes)
   }
 
-  override def preferredLocations: Seq[String] = locs
+  override def preferredLocations: Seq[String] = preferredLocs
 
   override def toString = "ShuffleMapTask(%d, %d)".format(stageId, partition)
 }
