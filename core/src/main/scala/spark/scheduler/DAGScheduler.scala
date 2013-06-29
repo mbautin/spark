@@ -264,7 +264,6 @@ class DAGScheduler(
         logInfo("Failed to run " + callSite)
         throw exception
     }
-    r
   }
 
   def runApproximateJob[T, U, R](
