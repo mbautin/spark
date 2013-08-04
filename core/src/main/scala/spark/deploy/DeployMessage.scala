@@ -106,3 +106,7 @@ case class WorkerState(host: String, port: Int, workerId: String, executors: Lis
   Utils.checkHost(host, "Required hostname")
   assert (port > 0)
 }
+
+// Actor System to Master
+
+private[spark]  case object CheckForWorkerTimeOut
