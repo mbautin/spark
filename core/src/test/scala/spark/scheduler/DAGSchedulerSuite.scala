@@ -495,4 +495,7 @@ class TaskSchedulerMock(f: (Int) => TaskEndReason ) extends TaskScheduler {
   override def defaultParallelism(): Int = {
     2
   }
+
+  override def rootPool: Pool = null
+  override def schedulingMode: SchedulingMode = SchedulingMode.NONE
 }
