@@ -38,10 +38,9 @@ private[spark] class ExecutorsUI(val sc: SparkContext) {
   def render(request: HttpServletRequest): Seq[Node] = {
     val storageStatusList = sc.getExecutorStorageStatus
 
-    val maxMem = storageStatusList.map(_.maxMem).reduce(_+_)
-    val memUsed = storageStatusList.map(_.memUsed()).reduce(_+_)
-    val diskSpaceUsed = storageStatusList.flatMap(_.blocks.values.map(_.diskSize))
-      .reduceOption(_+_).getOrElse(0L)
+    val maxMem = storageStatusList.map(_.maxMem).fold(0L)(_+_)
+    val memUsed = storageStatusList.map(_.memUsed()).fold(0L)(_+_)
+    val diskSpaceUsed = storageStatusList.flatMap(_.blocks.values.map(_.diskSize)).fold(0L)(_+_)
 
     val execHead = Seq("Executor ID", "Address", "RDD blocks", "Memory used", "Disk used",
       "Active tasks", "Failed tasks", "Complete tasks", "Total tasks")
@@ -93,11 +92,10 @@ private[spark] class ExecutorsUI(val sc: SparkContext) {
     val memUsed = sc.getExecutorStorageStatus(a).memUsed().toString
     val maxMem = sc.getExecutorStorageStatus(a).maxMem.toString
     val diskUsed = sc.getExecutorStorageStatus(a).diskUsed().toString
-    val activeTasks = listener.executorToTasksActive.get(a.toString).map(l => l.size)
-      .getOrElse(0).toString
-    val failedTasks = listener.executorToTasksFailed.getOrElse(a.toString, 0).toString
-    val completedTasks = listener.executorToTasksComplete.getOrElse(a.toString, 0).toString
-    val totalTasks = listener.executorToTaskInfos(a.toString).size.toString
+    val activeTasks = listener.executorToTasksActive.get(a.toString).map(l => l.size).getOrElse(0)
+    val failedTasks = listener.executorToTasksFailed.getOrElse(a.toString, 0)
+    val completedTasks = listener.executorToTasksComplete.getOrElse(a.toString, 0)
+    val totalTasks = activeTasks + failedTasks + completedTasks
 
     Seq(
       execId,
@@ -106,10 +104,10 @@ private[spark] class ExecutorsUI(val sc: SparkContext) {
       memUsed,
       maxMem,
       diskUsed,
-      activeTasks,
-      failedTasks,
-      completedTasks,
-      totalTasks
+      activeTasks.toString,
+      failedTasks.toString,
+      completedTasks.toString,
+      totalTasks.toString
     )
   }
 
@@ -117,17 +115,11 @@ private[spark] class ExecutorsUI(val sc: SparkContext) {
     val executorToTasksActive = HashMap[String, HashSet[TaskInfo]]()
     val executorToTasksComplete = HashMap[String, Int]()
     val executorToTasksFailed = HashMap[String, Int]()
-    val executorToTaskInfos =
-      HashMap[String, ArrayBuffer[(TaskInfo, Option[TaskMetrics], Option[ExceptionFailure])]]()
 
     override def onTaskStart(taskStart: SparkListenerTaskStart) {
       val eid = taskStart.taskInfo.executorId
       val activeTasks = executorToTasksActive.getOrElseUpdate(eid, new HashSet[TaskInfo]())
       activeTasks += taskStart.taskInfo
-      val taskList = executorToTaskInfos.getOrElse(
-        eid, ArrayBuffer[(TaskInfo, Option[TaskMetrics], Option[ExceptionFailure])]())
-      taskList += ((taskStart.taskInfo, None, None))
-      executorToTaskInfos(eid) = taskList
     }
 
     override def onTaskEnd(taskEnd: SparkListenerTaskEnd) {
@@ -143,11 +135,6 @@ private[spark] class ExecutorsUI(val sc: SparkContext) {
             executorToTasksComplete(eid) = executorToTasksComplete.getOrElse(eid, 0) + 1
             (None, Option(taskEnd.taskMetrics))
         }
-      val taskList = executorToTaskInfos.getOrElse(
-        eid, ArrayBuffer[(TaskInfo, Option[TaskMetrics], Option[ExceptionFailure])]())
-      taskList -= ((taskEnd.taskInfo, None, None))
-      taskList += ((taskEnd.taskInfo, metrics, failureInfo))
-      executorToTaskInfos(eid) = taskList
     }
   }
 }

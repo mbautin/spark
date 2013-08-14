@@ -21,18 +21,22 @@ import scala.util.Random
 
 import spark.{RDD, SparkContext}
 
+/**
+ * Generate test data for KMeans. This class first chooses k cluster centers
+ * from a d-dimensional Gaussian distribution scaled by factor r and then creates a Gaussian
+ * cluster with scale 1 around each center.
+ */
+
 object KMeansDataGenerator {
 
   /**
-   * Generate an RDD containing test data for KMeans. This function chooses k cluster centers
-   * from a d-dimensional Gaussian distribution scaled by factor r, then creates a Gaussian
-   * cluster with scale 1 around each center.
+   * Generate an RDD containing test data for KMeans.
    *
    * @param sc SparkContext to use for creating the RDD
    * @param numPoints Number of points that will be contained in the RDD
    * @param k Number of clusters
    * @param d Number of dimensions
-   * @parak r Scaling factor for the distribution of the initial centers
+   * @param r Scaling factor for the distribution of the initial centers
    * @param numPartitions Number of partitions of the generated RDD; default 2
    */
   def generateKMeansRDD(

@@ -44,7 +44,7 @@ private[spark] class EnvironmentUI(sc: SparkContext) {
       ("Java Home", Properties.javaHome),
       ("Scala Version", Properties.versionString),
       ("Scala Home", Properties.scalaHome)
-    )
+    ).sorted
     def jvmRow(kv: (String, String)) = <tr><td>{kv._1}</td><td>{kv._2}</td></tr>
     def jvmTable = UIUtils.listingTable(Seq("Name", "Value"), jvmRow, jvmInformation)
 
@@ -53,8 +53,8 @@ private[spark] class EnvironmentUI(sc: SparkContext) {
         .filter{case (k, v) => k.contains("java.class.path")}
         .headOption
         .getOrElse("", "")
-    val sparkProperties = properties.filter(_._1.startsWith("spark"))
-    val otherProperties = properties.diff(sparkProperties :+ classPathProperty)
+    val sparkProperties = properties.filter(_._1.startsWith("spark")).sorted
+    val otherProperties = properties.diff(sparkProperties :+ classPathProperty).sorted
 
     val propertyHeaders = Seq("Name", "Value")
     def propertyRow(kv: (String, String)) = <tr><td>{kv._1}</td><td>{kv._2}</td></tr>
@@ -67,7 +67,7 @@ private[spark] class EnvironmentUI(sc: SparkContext) {
         .map(e => (e, "System Classpath"))
     val addedJars = sc.addedJars.iterator.toSeq.map{case (path, time) => (path, "Added By User")}
     val addedFiles = sc.addedFiles.iterator.toSeq.map{case (path, time) => (path, "Added By User")}
-    val classPath = addedJars ++ addedFiles ++ classPathEntries
+    val classPath = (addedJars ++ addedFiles ++ classPathEntries).sorted
 
     val classPathHeaders = Seq("Resource", "Source")
     def classPathRow(data: (String, String)) = <tr><td>{data._1}</td><td>{data._2}</td></tr>
@@ -75,10 +75,10 @@ private[spark] class EnvironmentUI(sc: SparkContext) {
 
     val content =
       <span>
-        <h2>Runtime Information</h2> {jvmTable}
-        <h2>Spark Properties</h2> {sparkPropertyTable}
-        <h2>System Properties</h2> {otherPropertyTable}
-        <h2>Classpath Entries</h2> {classPathTable}
+        <h4>Runtime Information</h4> {jvmTable}
+        <h4>Spark Properties</h4> {sparkPropertyTable}
+        <h4>System Properties</h4> {otherPropertyTable}
+        <h4>Classpath Entries</h4> {classPathTable}
       </span>
 
     headerSparkPage(content, sc, "Environment", Environment)

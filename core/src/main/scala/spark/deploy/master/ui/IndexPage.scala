@@ -35,7 +35,7 @@ import spark.deploy.master.{ApplicationInfo, WorkerInfo}
 import spark.ui.UIUtils
 
 private[spark] class IndexPage(parent: MasterWebUI) {
-  val master = parent.master
+  val master = parent.masterActorRef
   implicit val timeout = parent.timeout
 
   def renderJson(request: HttpServletRequest): JValue = {
@@ -81,8 +81,7 @@ private[spark] class IndexPage(parent: MasterWebUI) {
 
         <div class="row">
           <div class="span12">
-            <h3> Workers </h3>
-            <br/>
+            <h4> Workers </h4>
             {workerTable}
           </div>
         </div>
@@ -91,8 +90,8 @@ private[spark] class IndexPage(parent: MasterWebUI) {
 
         <div class="row">
           <div class="span12">
-            <h3> Running Applications </h3>
-            <br/>
+            <h4> Running Applications </h4>
+
             {activeAppsTable}
           </div>
         </div>
@@ -101,8 +100,7 @@ private[spark] class IndexPage(parent: MasterWebUI) {
 
         <div class="row">
           <div class="span12">
-            <h3> Completed Applications </h3>
-            <br/>
+            <h4> Completed Applications </h4>
             {completedAppsTable}
           </div>
         </div>;

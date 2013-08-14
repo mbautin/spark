@@ -33,7 +33,7 @@ import spark.deploy.master.ExecutorInfo
 import spark.ui.UIUtils
 
 private[spark] class ApplicationPage(parent: MasterWebUI) {
-  val master = parent.master
+  val master = parent.masterActorRef
   implicit val timeout = parent.timeout
 
   /** Executor details for a particular application */
@@ -90,8 +90,7 @@ private[spark] class ApplicationPage(parent: MasterWebUI) {
 
         <div class="row"> <!-- Executors -->
           <div class="span12">
-            <h3> Executor Summary </h3>
-            <br/>
+            <h4> Executor Summary </h4>
             {executorTable}
           </div>
         </div>;

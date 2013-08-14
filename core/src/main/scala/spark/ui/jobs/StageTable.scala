@@ -25,11 +25,13 @@ private[spark] class StageTable(val stages: Seq[Stage], val parent: JobProgressU
   val isFairScheduler = listener.sc.getSchedulingMode == SchedulingMode.FAIR
 
   def toNodeSeq(): Seq[Node] = {
-    stageTable(stageRow, stages)
+    listener.synchronized {
+      stageTable(stageRow, stages)
+    }
   }
 
   /** Special table which merges two header cells. */
-  def stageTable[T](makeRow: T => Seq[Node], rows: Seq[T]): Seq[Node] = {
+  private def stageTable[T](makeRow: T => Seq[Node], rows: Seq[T]): Seq[Node] = {
     <table class="table table-bordered table-striped table-condensed sortable">
       <thead>
         <th>Stage Id</th>
@@ -37,10 +39,9 @@ private[spark] class StageTable(val stages: Seq[Stage], val parent: JobProgressU
         <th>Description</th>
         <th>Submitted</th>
         <td>Duration</td>
-        <td colspan="2">Tasks: Complete/Total</td>
+        <td>Tasks: Succeeded/Total</td>
         <td>Shuffle Read</td>
         <td>Shuffle Write</td>
-        <td>Stored RDD</td>
       </thead>
       <tbody>
         {rows.map(r => makeRow(r))}
@@ -48,25 +49,28 @@ private[spark] class StageTable(val stages: Seq[Stage], val parent: JobProgressU
     </table>
   }
 
-  def getElapsedTime(submitted: Option[Long], completed: Long): String = {
+  private def getElapsedTime(submitted: Option[Long], completed: Long): String = {
     submitted match {
       case Some(t) => parent.formatDuration(completed - t)
       case _ => "Unknown"
     }
   }
 
-  def makeProgressBar(started: Int, completed: Int, total: Int): Seq[Node] = {
+  private def makeProgressBar(started: Int, completed: Int, failed: String, total: Int): Seq[Node] = {
     val completeWidth = "width: %s%%".format((completed.toDouble/total)*100)
     val startWidth = "width: %s%%".format((started.toDouble/total)*100)
 
-    <div class="progress" style="height: 15px; margin-bottom: 0px">
-      <div class="bar" style={completeWidth}></div>
-      <div class="bar bar-info" style={startWidth}></div>
+    <div class="progress" style="height: 15px; margin-bottom: 0px; position: relative">
+      <span style="text-align:center; position:absolute; width:100%;">
+        {completed}/{total} {failed}
+      </span>
+      <div class="bar bar-completed" style={completeWidth}></div>
+      <div class="bar bar-running" style={startWidth}></div>
     </div>
   }
 
 
-  def stageRow(s: Stage): Seq[Node] = {
+  private def stageRow(s: Stage): Seq[Node] = {
     val submissionTime = s.submissionTime match {
       case Some(t) => dateFmt.format(new Date(t))
       case None => "Unknown"
@@ -83,6 +87,10 @@ private[spark] class StageTable(val stages: Seq[Stage], val parent: JobProgressU
 
     val startedTasks = listener.stageToTasksActive.getOrElse(s.id, HashSet[TaskInfo]()).size
     val completedTasks = listener.stageToTasksComplete.getOrElse(s.id, 0)
+    val failedTasks = listener.stageToTasksFailed.getOrElse(s.id, 0) match {
+        case f if f > 0 => "(%s failed)".format(f)
+        case _ => ""
+    }
     val totalTasks = s.numPartitions
 
     val poolName = listener.stageToPool.get(s)
@@ -100,21 +108,11 @@ private[spark] class StageTable(val stages: Seq[Stage], val parent: JobProgressU
       <td valign="middle">{submissionTime}</td>
       <td>{getElapsedTime(s.submissionTime,
              s.completionTime.getOrElse(System.currentTimeMillis()))}</td>
-      <td class="progress-cell">{makeProgressBar(startedTasks, completedTasks, totalTasks)}</td>
-      <td style="border-left: 0; text-align: center;">{completedTasks} / {totalTasks}
-        {listener.stageToTasksFailed.getOrElse(s.id, 0) match {
-        case f if f > 0 => "(%s failed)".format(f)
-        case _ =>
-      }}
+      <td class="progress-cell">
+        {makeProgressBar(startedTasks, completedTasks, failedTasks, totalTasks)}
       </td>
       <td>{shuffleRead}</td>
       <td>{shuffleWrite}</td>
-      <td>{if (s.rdd.getStorageLevel != StorageLevel.NONE) {
-             <a href={"/storage/rdd?id=%s".format(s.rdd.id)}>
-               {Option(s.rdd.name).getOrElse(s.rdd.id)}
-             </a>
-          }}
-      </td>
     </tr>
   }
 }
