@@ -17,7 +17,7 @@ import org.apache.hadoop.util.ReflectionUtils
 
 import spark.{Dependency, Logging, Partition, RDD, SerializableWritable, SparkContext, TaskContext}
 import spark.util.NextIterator
-import org.apache.hadoop.conf.Configurable
+import org.apache.hadoop.conf.{Configuration, Configurable}
 
 
 /**
@@ -112,4 +112,6 @@ class HadoopRDD[K, V](
   override def checkpoint() {
     // Do nothing. Hadoop RDD should not be checkpointed.
   }
+
+  def getConf: Configuration = confBroadcast.value.value
 }
