@@ -46,11 +46,12 @@ private[spark] class StagePage(parent: JobProgressUI) {
             <h4>Summary Metrics</h4> No tasks have started yet
             <h4>Tasks</h4> No tasks have started yet
           </div>
-        return headerSparkPage(content, parent.sc, "Stage Details: %s".format(stageId), Jobs)
+        return headerSparkPage(content, parent.sc, "Details for Stage %s".format(stageId), Jobs)
       }
 
       val tasks = listener.stageToTaskInfos(stageId).toSeq.sortBy(_._1.launchTime)
 
+      val numCompleted = tasks.count(_._1.finished)
       val shuffleReadBytes = listener.stageToShuffleRead.getOrElse(stageId, 0L)
       val hasShuffleRead = shuffleReadBytes > 0
       val shuffleWriteBytes = listener.stageToShuffleWrite.getOrElse(stageId, 0L)
@@ -69,24 +70,24 @@ private[spark] class StagePage(parent: JobProgressUI) {
             {if (hasShuffleRead)
               <li>
                 <strong>Shuffle read: </strong>
-                {Utils.memoryBytesToString(shuffleReadBytes)}
+                {Utils.bytesToString(shuffleReadBytes)}
               </li>
             }
             {if (hasShuffleWrite)
               <li>
                 <strong>Shuffle write: </strong>
-                {Utils.memoryBytesToString(shuffleWriteBytes)}
+                {Utils.bytesToString(shuffleWriteBytes)}
               </li>
             }
           </ul>
         </div>
 
       val taskHeaders: Seq[String] =
-        Seq("Task ID", "Status", "Duration", "Locality Level", "Worker", "Launch Time") ++
-          {if (hasShuffleRead) Seq("Shuffle Read")  else Nil} ++
-          {if (hasShuffleWrite) Seq("Shuffle Write") else Nil} ++
+        Seq("Task ID", "Status", "Locality Level", "Executor", "Launch Time", "Duration") ++
         Seq("GC Time") ++
-        Seq("Details")
+        {if (hasShuffleRead) Seq("Shuffle Read")  else Nil} ++
+        {if (hasShuffleWrite) Seq("Shuffle Write") else Nil} ++
+        Seq("Errors")
 
       val taskTable = listingTable(taskHeaders, taskRow(hasShuffleRead, hasShuffleWrite), tasks)
 
@@ -104,7 +105,7 @@ private[spark] class StagePage(parent: JobProgressUI) {
             ms => parent.formatDuration(ms.toLong))
 
           def getQuantileCols(data: Seq[Double]) =
-            Distribution(data).get.getQuantiles().map(d => Utils.memoryBytesToString(d.toLong))
+            Distribution(data).get.getQuantiles().map(d => Utils.bytesToString(d.toLong))
 
           val shuffleReadSizes = validTasks.map {
             case(info, metrics, exception) =>
@@ -122,16 +123,19 @@ private[spark] class StagePage(parent: JobProgressUI) {
             if (hasShuffleRead) shuffleReadQuantiles else Nil,
             if (hasShuffleWrite) shuffleWriteQuantiles else Nil)
 
-          val quantileHeaders = Seq("Metric", "Min", "25%", "50%", "75%", "Max")
+          val quantileHeaders = Seq("Metric", "Min", "25th percentile",
+            "Median", "75th percentile", "Max")
           def quantileRow(data: Seq[String]): Seq[Node] = <tr> {data.map(d => <td>{d}</td>)} </tr>
-          Some(listingTable(quantileHeaders, quantileRow, listings))
+          Some(listingTable(quantileHeaders, quantileRow, listings, fixedWidth = true))
         }
 
       val content =
-        summary ++ <h2>Summary Metrics</h2> ++ summaryTable.getOrElse(Nil) ++
-          <h2>Tasks</h2> ++ taskTable;
+        summary ++
+        <h4>Summary Metrics for {numCompleted} Completed Tasks</h4> ++
+        <div>{summaryTable.getOrElse("No tasks have reported metrics yet.")}</div> ++
+        <hr/><h4>Tasks</h4> ++ taskTable;
 
-      headerSparkPage(content, parent.sc, "Stage Details: %s".format(stageId), Jobs)
+      headerSparkPage(content, parent.sc, "Details for Stage %d".format(stageId), Jobs)
     }
   }
 
@@ -151,23 +155,23 @@ private[spark] class StagePage(parent: JobProgressUI) {
     <tr>
       <td>{info.taskId}</td>
       <td>{info.status}</td>
-      <td sorttable_customkey={duration.toString}>
-        {formatDuration}
-      </td>
       <td>{info.taskLocality}</td>
       <td>{info.hostPort}</td>
       <td>{dateFmt.format(new Date(info.launchTime))}</td>
-      {if (shuffleRead) {
-        <td>{metrics.flatMap{m => m.shuffleReadMetrics}.map{s =>
-          Utils.memoryBytesToString(s.remoteBytesRead)}.getOrElse("")}</td>
-      }}
-      {if (shuffleWrite) {
-        <td>{metrics.flatMap{m => m.shuffleWriteMetrics}.map{s =>
-          Utils.memoryBytesToString(s.shuffleBytesWritten)}.getOrElse("")}</td>
-      }}
+      <td sorttable_customkey={duration.toString}>
+        {formatDuration}
+      </td>
       <td sorttable_customkey={gcTime.toString}>
         {if (gcTime > 0) parent.formatDuration(gcTime) else ""}
       </td>
+      {if (shuffleRead) {
+        <td>{metrics.flatMap{m => m.shuffleReadMetrics}.map{s =>
+          Utils.bytesToString(s.remoteBytesRead)}.getOrElse("")}</td>
+      }}
+      {if (shuffleWrite) {
+        <td>{metrics.flatMap{m => m.shuffleWriteMetrics}.map{s =>
+          Utils.bytesToString(s.shuffleBytesWritten)}.getOrElse("")}</td>
+      }}
       <td>{exception.map(e =>
         <span>
           {e.className} ({e.description})<br/>

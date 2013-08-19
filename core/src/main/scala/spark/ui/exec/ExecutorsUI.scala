@@ -1,25 +1,20 @@
 package spark.ui.exec
 
-
 import javax.servlet.http.HttpServletRequest
+
+import scala.collection.mutable.{HashMap, HashSet}
+import scala.xml.Node
 
 import org.eclipse.jetty.server.Handler
 
-import scala.collection.mutable.{ArrayBuffer, HashMap, HashSet}
-import scala.util.Properties
-
-import spark.{ExceptionFailure, Logging, SparkContext, Success, Utils}
+import spark.{ExceptionFailure, Logging, Utils, SparkContext}
 import spark.executor.TaskMetrics
 import spark.scheduler.cluster.TaskInfo
-import spark.scheduler._
-import spark.SparkContext
-import spark.storage.{StorageStatus, StorageUtils}
+import spark.scheduler.{SparkListenerTaskStart, SparkListenerTaskEnd, SparkListener}
 import spark.ui.JettyUtils._
 import spark.ui.Page.Executors
-import spark.ui.UIUtils.headerSparkPage
 import spark.ui.UIUtils
 
-import scala.xml.{Node, XML}
 
 private[spark] class ExecutorsUI(val sc: SparkContext) {
 
@@ -44,25 +39,26 @@ private[spark] class ExecutorsUI(val sc: SparkContext) {
 
     val execHead = Seq("Executor ID", "Address", "RDD blocks", "Memory used", "Disk used",
       "Active tasks", "Failed tasks", "Complete tasks", "Total tasks")
-    def execRow(kv: Seq[String]) =
+
+    def execRow(kv: Seq[String]) = {
       <tr>
         <td>{kv(0)}</td>
         <td>{kv(1)}</td>
         <td>{kv(2)}</td>
         <td sorttable_customkey={kv(3)}>
-          {Utils.memoryBytesToString(kv(3).toLong)} / {Utils.memoryBytesToString(kv(4).toLong)}
+          {Utils.bytesToString(kv(3).toLong)} / {Utils.bytesToString(kv(4).toLong)}
         </td>
         <td sorttable_customkey={kv(5)}>
-          {Utils.memoryBytesToString(kv(5).toLong)}
+          {Utils.bytesToString(kv(5).toLong)}
         </td>
         <td>{kv(6)}</td>
         <td>{kv(7)}</td>
         <td>{kv(8)}</td>
         <td>{kv(9)}</td>
       </tr>
-    val execInfo =
-      for (b <- 0 until storageStatusList.size)
-        yield getExecInfo(b)
+    }
+
+    val execInfo = for (b <- 0 until storageStatusList.size) yield getExecInfo(b)
     val execTable = UIUtils.listingTable(execHead, execRow, execInfo)
 
     val content =
@@ -70,9 +66,9 @@ private[spark] class ExecutorsUI(val sc: SparkContext) {
         <div class="span12">
           <ul class="unstyled">
             <li><strong>Memory:</strong>
-              {Utils.memoryBytesToString(memUsed)} Used
-              ({Utils.memoryBytesToString(maxMem)} Total) </li>
-            <li><strong>Disk:</strong> {Utils.memoryBytesToString(diskSpaceUsed)} Used </li>
+              {Utils.bytesToString(memUsed)} Used
+              ({Utils.bytesToString(maxMem)} Total) </li>
+            <li><strong>Disk:</strong> {Utils.bytesToString(diskSpaceUsed)} Used </li>
           </ul>
         </div>
       </div>
@@ -82,7 +78,7 @@ private[spark] class ExecutorsUI(val sc: SparkContext) {
         </div>
       </div>;
 
-    headerSparkPage(content, sc, "Executors", Executors)
+    UIUtils.headerSparkPage(content, sc, execInfo.size + " Executors", Executors)
   }
 
   def getExecInfo(a: Int): Seq[String] = {
