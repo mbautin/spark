@@ -106,7 +106,7 @@ class DAGScheduler(
 
   val nextJobId = new AtomicInteger(0)
 
-  val runIdToStageIds = new HashMap[Int, HashSet[Int]]
+  val jobIdToStageIds = new HashMap[Int, HashSet[Int]]
 
   val nextStageId = new AtomicInteger(0)
 
@@ -208,7 +208,7 @@ class DAGScheduler(
     val stage = new Stage(id, rdd, shuffleDep, getParentStages(rdd, jobId), jobId, callSite)
     stageIdToStage(id) = stage
     stageToInfos(stage) = StageInfo(stage)
-    val stageIdSet = runIdToStageIds.getOrElseUpdate(priority, new HashSet)
+    val stageIdSet = jobIdToStageIds.getOrElseUpdate(jobId, new HashSet)
     stageIdSet += id
     stage
   }
@@ -836,7 +836,7 @@ class DAGScheduler(
   }
 
   def removeStages(job: ActiveJob) = {
-    runIdToStageIds(job.runId).foreach(stageId => {
+    jobIdToStageIds(job.jobId).foreach(stageId => {
       idToStage.get(stageId).map( stage => {
         pendingTasks -= stage
         waiting -= stage
@@ -845,7 +845,7 @@ class DAGScheduler(
       })
       idToStage -= stageId
     })
-    runIdToStageIds -= job.runId
+    jobIdToStageIds -= job.jobId
   }
 
   def stop() {
