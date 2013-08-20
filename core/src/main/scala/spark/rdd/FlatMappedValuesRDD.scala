@@ -15,23 +15,22 @@
  * limitations under the License.
  */
 
-package spark.scheduler.cluster
+package spark.rdd
 
-import java.nio.ByteBuffer
-import spark.util.SerializableBuffer
+import spark.{TaskContext, Partition, RDD}
 
-private[spark] class TaskDescription(
-    val taskId: Long,
-    val executorId: String,
-    val name: String,
-    val index: Int,    // Index within this task's TaskSet
-    _serializedTask: ByteBuffer)
-  extends Serializable {
 
-  // Because ByteBuffers are not serializable, wrap the task in a SerializableBuffer
-  private val buffer = new SerializableBuffer(_serializedTask)
+private[spark]
+class FlatMappedValuesRDD[K, V, U](prev: RDD[_ <: Product2[K, V]], f: V => TraversableOnce[U])
+  extends RDD[(K, U)](prev) {
 
-  def serializedTask: ByteBuffer = buffer.value
+  override def getPartitions = firstParent[Product2[K, V]].partitions
 
-  override def toString: String = "TaskDescription(TID=%d, index=%d)".format(taskId, index)
+  override val partitioner = firstParent[Product2[K, V]].partitioner
+
+  override def compute(split: Partition, context: TaskContext) = {
+    firstParent[Product2[K, V]].iterator(split, context).flatMap { case Product2(k, v) =>
+      f(v).map(x => (k, x))
+    }
+  }
 }
