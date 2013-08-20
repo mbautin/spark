@@ -837,13 +837,13 @@ class DAGScheduler(
 
   def removeStages(job: ActiveJob) = {
     jobIdToStageIds(job.jobId).foreach(stageId => {
-      idToStage.get(stageId).map( stage => {
+      stageIdToStage.get(stageId).map( stage => {
         pendingTasks -= stage
         waiting -= stage
         running -= stage
         failed -= stage
       })
-      idToStage -= stageId
+      stageIdToStage -= stageId
     })
     jobIdToStageIds -= job.jobId
   }
