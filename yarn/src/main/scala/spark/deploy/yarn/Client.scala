@@ -185,6 +185,8 @@ class Client(conf: Configuration, args: ClientArguments) extends YarnClientImpl 
       env("SPARK_YARN_LOG4J_SIZE") =  log4jConfLocalRes.getSize().toString()
     }
 
+    // allow users to specify some environment variables
+    Apps.setEnvFromInputString(env, System.getenv("SPARK_YARN_USER_ENV"))
 
     // Add each SPARK-* key to the environment
     System.getenv().filterKeys(_.startsWith("SPARK")).foreach { case (k,v) => env(k) = v }
@@ -221,6 +223,10 @@ class Client(conf: Configuration, args: ClientArguments) extends YarnClientImpl 
     // Add Xmx for am memory
     JAVA_OPTS += "-Xmx" + amMemory + "m "
 
+    JAVA_OPTS += " -Djava.io.tmpdir=" + new Path(Environment.PWD.$(),
+                                                 YarnConfiguration.DEFAULT_CONTAINER_TEMP_DIR)
+
+
     // Commenting it out for now - so that people can refer to the properties if required. Remove it once cpuset version is pushed out.
     // The context is, default gc for server class machines end up using all cores to do gc - hence if there are multiple containers in same
     // node, spark gc effects all other containers performance (which can also be other spark containers)
@@ -241,7 +247,7 @@ class Client(conf: Configuration, args: ClientArguments) extends YarnClientImpl 
     // Command for the ApplicationMaster
     var javaCommand = "java";
     val javaHome = System.getenv("JAVA_HOME")
-    if (javaHome != null && !javaHome.isEmpty()) {
+    if ((javaHome != null && !javaHome.isEmpty()) || env.isDefinedAt("JAVA_HOME")) {
       javaCommand = Environment.JAVA_HOME.$() + "/bin/java"
     }
 

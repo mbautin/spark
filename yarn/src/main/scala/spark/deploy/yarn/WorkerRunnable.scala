@@ -75,6 +75,10 @@ class WorkerRunnable(container: Container, conf: Configuration, masterAddress: S
     if (env.isDefinedAt("SPARK_JAVA_OPTS")) {
       JAVA_OPTS += env("SPARK_JAVA_OPTS") + " "
     }
+
+    JAVA_OPTS += " -Djava.io.tmpdir=" + new Path(Environment.PWD.$(),
+                                                 YarnConfiguration.DEFAULT_CONTAINER_TEMP_DIR)
+
     // Commenting it out for now - so that people can refer to the properties if required. Remove it once cpuset version is pushed out.
     // The context is, default gc for server class machines end up using all cores to do gc - hence if there are multiple containers in same
     // node, spark gc effects all other containers performance (which can also be other spark containers)
@@ -104,7 +108,7 @@ class WorkerRunnable(container: Container, conf: Configuration, masterAddress: S
 
     var javaCommand = "java";
     val javaHome = System.getenv("JAVA_HOME")
-    if (javaHome != null && !javaHome.isEmpty()) {
+    if ((javaHome != null && !javaHome.isEmpty()) || env.isDefinedAt("JAVA_HOME")) {
       javaCommand = Environment.JAVA_HOME.$() + "/bin/java"
     }
 
@@ -186,6 +190,9 @@ class WorkerRunnable(container: Container, conf: Configuration, masterAddress: S
     Apps.addToEnvironment(env, Environment.CLASSPATH.name, "./*")
     Apps.addToEnvironment(env, Environment.CLASSPATH.name, "$CLASSPATH")
     Client.populateHadoopClasspath(yarnConf, env)
+
+    // allow users to specify some environment variables
+    Apps.setEnvFromInputString(env, System.getenv("SPARK_YARN_USER_ENV"))
 
     System.getenv().filterKeys(_.startsWith("SPARK")).foreach { case (k,v) => env(k) = v }
     return env
