@@ -21,12 +21,12 @@
   <parent>
     <groupId>org.apache.spark</groupId>
     <artifactId>spark-parent</artifactId>
-    <version>0.8.0-candidate-csd-7-SNAPSHOT</version>
+    <version>0.8.0-csd-1-SNAPSHOT</version>
     <relativePath>../pom.xml</relativePath>
   </parent>
 
   <groupId>org.apache.spark</groupId>
-  <artifactId>spark-core</artifactId>
+  <artifactId>spark-core_2.9.3</artifactId>
   <packaging>jar</packaging>
   <name>Spark Project Core</name>
   <url>http://spark.incubator.apache.org/</url>
@@ -35,6 +35,10 @@
     <dependency>
       <groupId>org.apache.hadoop</groupId>
       <artifactId>hadoop-client</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>net.java.dev.jets3t</groupId>
+      <artifactId>jets3t</artifactId>
     </dependency>
     <dependency>
       <groupId>org.apache.avro</groupId>
@@ -147,18 +151,22 @@
       <artifactId>metrics-json</artifactId>
     </dependency>
     <dependency>
+      <groupId>com.codahale.metrics</groupId>
+      <artifactId>metrics-ganglia</artifactId>
+    </dependency>
+    <dependency>
       <groupId>org.apache.derby</groupId>
       <artifactId>derby</artifactId>
       <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>org.scalatest</groupId>
-      <artifactId>scalatest_${scala.version}</artifactId>
+      <artifactId>scalatest_2.9.3</artifactId>
       <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>org.scalacheck</groupId>
-      <artifactId>scalacheck_${scala.version}</artifactId>
+      <artifactId>scalacheck_2.9.3</artifactId>
       <scope>test</scope>
     </dependency>
     <dependency>

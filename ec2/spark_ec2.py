@@ -66,7 +66,7 @@ def parse_args():
            "slaves across multiple (an additional $0.01/Gb for bandwidth" +
            "between zones applies)")
   parser.add_option("-a", "--ami", help="Amazon Machine Image ID to use")
-  parser.add_option("-v", "--spark-version", default="0.7.3",
+  parser.add_option("-v", "--spark-version", default="0.8.0",
       help="Version of Spark to use: 'X.Y.Z' or a specific git hash")
   parser.add_option("--spark-git-repo", 
       default="https://github.com/mesos/spark", 
@@ -155,7 +155,7 @@ def is_active(instance):
 
 # Return correct versions of Spark and Shark, given the supplied Spark version
 def get_spark_shark_version(opts):
-  spark_shark_map = {"0.7.3": "0.7.0"}
+  spark_shark_map = {"0.7.3": "0.7.0", "0.8.0": "0.8.0"}
   version = opts.spark_version.replace("v", "")
   if version not in spark_shark_map:
     print >> stderr, "Don't know about Spark version: %s" % version
@@ -215,11 +215,10 @@ def launch_cluster(conn, opts, cluster_name):
     master_group.authorize(src_group=slave_group)
     master_group.authorize('tcp', 22, 22, '0.0.0.0/0')
     master_group.authorize('tcp', 8080, 8081, '0.0.0.0/0')
-    master_group.authorize('tcp', 33000, 33000, '0.0.0.0/0')
     master_group.authorize('tcp', 50030, 50030, '0.0.0.0/0')
     master_group.authorize('tcp', 50070, 50070, '0.0.0.0/0')
     master_group.authorize('tcp', 60070, 60070, '0.0.0.0/0')
-    master_group.authorize('tcp', 3030, 3035, '0.0.0.0/0')
+    master_group.authorize('tcp', 4040, 4045, '0.0.0.0/0')
     if opts.ganglia:
       master_group.authorize('tcp', 5080, 5080, '0.0.0.0/0')
   if slave_group.rules == []: # Group was just now created

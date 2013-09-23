@@ -25,7 +25,7 @@
   </parent>
   <groupId>org.apache.spark</groupId>
   <artifactId>spark-parent</artifactId>
-  <version>0.8.0-candidate-csd-7-SNAPSHOT</version>
+  <version>0.8.0-csd-1-SNAPSHOT</version>
   <packaging>pom</packaging>
   <name>Spark Project Parent POM</name>
   <url>http://spark.incubator.apache.org/</url>
@@ -39,6 +39,8 @@
   <scm>
     <connection>scm:git:git@github.com:clearstorydata/spark.git</connection>
     <url>scm:git:git@github.com:clearstorydata/spark.git</url>
+    <developerConnection>scm:git:https://github.com/clearstorydata/spark.git</developerConnection>
+    <tag>HEAD</tag>
   </scm>
   <developers>
     <developer>
@@ -76,12 +78,13 @@
 
     <java.version>1.5</java.version>
     <scala.version>2.9.3</scala.version>
-    <mesos.version>0.12.1</mesos.version>
+    <mesos.version>0.13.0</mesos.version>
     <akka.version>2.0.5</akka.version>
     <slf4j.version>1.7.5</slf4j.version>
     <log4j.version>1.2.17</log4j.version>
     <hadoop.version>2.0.0-mr1-cdh4.1.2</hadoop.version>
-    <!-- <hadoop.version>1.0.4</hadoop.version> -->
+    <hadoop.version>1.0.4</hadoop.version>
+    <yarn.version>0.23.7</yarn.version>
     <hbase.version>0.94.6</hbase.version>
 
     <PermGen>64m</PermGen>
@@ -309,6 +312,11 @@
         <version>3.0.0</version>
       </dependency>
       <dependency>
+        <groupId>com.codahale.metrics</groupId>
+        <artifactId>metrics-ganglia</artifactId>
+        <version>3.0.0</version>
+      </dependency>
+      <dependency>
         <groupId>org.scala-lang</groupId>
         <artifactId>scala-compiler</artifactId>
         <version>${scala.version}</version>
@@ -337,7 +345,7 @@
 
       <dependency>
         <groupId>org.scalatest</groupId>
-        <artifactId>scalatest_${scala.version}</artifactId>
+        <artifactId>scalatest_2.9.3</artifactId>
         <version>1.9.1</version>
         <scope>test</scope>
       </dependency>
@@ -349,7 +357,7 @@
       </dependency>
       <dependency>
         <groupId>org.scalacheck</groupId>
-        <artifactId>scalacheck_${scala.version}</artifactId>
+        <artifactId>scalacheck_2.9.3</artifactId>
         <version>1.10.0</version>
         <scope>test</scope>
       </dependency>
@@ -363,6 +371,104 @@
         <groupId>org.apache.hadoop</groupId>
         <artifactId>hadoop-client</artifactId>
         <version>${hadoop.version}</version>
+        <exclusions>
+          <exclusion>
+            <groupId>asm</groupId>
+            <artifactId>asm</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>org.jboss.netty</groupId>
+            <artifactId>netty</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>org.codehaus.jackson</groupId>
+            <artifactId>jackson-core-asl</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>org.codehaus.jackson</groupId>
+            <artifactId>jackson-mapper-asl</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>org.codehaus.jackson</groupId>
+            <artifactId>jackson-jaxrs</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>org.codehaus.jackson</groupId>
+            <artifactId>jackson-xc</artifactId>
+          </exclusion>
+        </exclusions>
+      </dependency>
+      <dependency>
+        <groupId>net.java.dev.jets3t</groupId>
+        <artifactId>jets3t</artifactId>
+        <version>0.7.1</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.hadoop</groupId>
+        <artifactId>hadoop-yarn-api</artifactId>
+        <version>${yarn.version}</version>
+        <exclusions>
+          <exclusion>
+            <groupId>asm</groupId>
+            <artifactId>asm</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>org.jboss.netty</groupId>
+            <artifactId>netty</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>org.codehaus.jackson</groupId>
+            <artifactId>jackson-core-asl</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>org.codehaus.jackson</groupId>
+            <artifactId>jackson-mapper-asl</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>org.codehaus.jackson</groupId>
+            <artifactId>jackson-jaxrs</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>org.codehaus.jackson</groupId>
+            <artifactId>jackson-xc</artifactId>
+          </exclusion>
+        </exclusions>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.hadoop</groupId>
+        <artifactId>hadoop-yarn-common</artifactId>
+        <version>${yarn.version}</version>
+        <exclusions>
+          <exclusion>
+            <groupId>asm</groupId>
+            <artifactId>asm</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>org.jboss.netty</groupId>
+            <artifactId>netty</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>org.codehaus.jackson</groupId>
+            <artifactId>jackson-core-asl</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>org.codehaus.jackson</groupId>
+            <artifactId>jackson-mapper-asl</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>org.codehaus.jackson</groupId>
+            <artifactId>jackson-jaxrs</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>org.codehaus.jackson</groupId>
+            <artifactId>jackson-xc</artifactId>
+          </exclusion>
+        </exclusions>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.hadoop</groupId>
+        <artifactId>hadoop-yarn-client</artifactId>
+        <version>${yarn.version}</version>
         <exclusions>
           <exclusion>
             <groupId>asm</groupId>
@@ -521,7 +627,7 @@
             <junitxml>.</junitxml>
             <filereports>${project.build.directory}/SparkTestSuite.txt</filereports>
             <argLine>-Xms64m -Xmx3g</argLine>
-            <stderr/>
+            <stderr />
           </configuration>
           <executions>
             <execution>
@@ -618,8 +724,8 @@
       <properties>
         <hadoop.major.version>2</hadoop.major.version>
         <!-- 0.23.* is same as 2.0.* - except hardened to run production jobs -->
-        <!-- <hadoop.version>0.23.7</hadoop.version> -->
-        <hadoop.version>2.0.5-alpha</hadoop.version>
+        <hadoop.version>0.23.7</hadoop.version>
+        <!--<hadoop.version>2.0.5-alpha</hadoop.version> -->
       </properties>
 
       <modules>
@@ -642,131 +748,6 @@
 
       <dependencyManagement>
         <dependencies>
-          <!-- TODO: check versions, bringover from yarn branch ! -->
-          <dependency>
-            <groupId>org.apache.hadoop</groupId>
-            <artifactId>hadoop-client</artifactId>
-            <version>${hadoop.version}</version>
-            <exclusions>
-              <exclusion>
-                <groupId>asm</groupId>
-                <artifactId>asm</artifactId>
-              </exclusion>
-              <exclusion>
-                <groupId>org.jboss.netty</groupId>
-                <artifactId>netty</artifactId>
-              </exclusion>
-              <exclusion>
-                <groupId>org.codehaus.jackson</groupId>
-                <artifactId>jackson-core-asl</artifactId>
-              </exclusion>
-              <exclusion>
-                <groupId>org.codehaus.jackson</groupId>
-                <artifactId>jackson-mapper-asl</artifactId>
-              </exclusion>
-              <exclusion>
-                <groupId>org.codehaus.jackson</groupId>
-                <artifactId>jackson-jaxrs</artifactId>
-              </exclusion>
-              <exclusion>
-                <groupId>org.codehaus.jackson</groupId>
-                <artifactId>jackson-xc</artifactId>
-              </exclusion>
-            </exclusions>
-          </dependency>
-          <dependency>
-            <groupId>org.apache.hadoop</groupId>
-            <artifactId>hadoop-yarn-api</artifactId>
-            <version>${hadoop.version}</version>
-            <exclusions>
-              <exclusion>
-                <groupId>asm</groupId>
-                <artifactId>asm</artifactId>
-              </exclusion>
-              <exclusion>
-                <groupId>org.jboss.netty</groupId>
-                <artifactId>netty</artifactId>
-              </exclusion>
-              <exclusion>
-                <groupId>org.codehaus.jackson</groupId>
-                <artifactId>jackson-core-asl</artifactId>
-              </exclusion>
-              <exclusion>
-                <groupId>org.codehaus.jackson</groupId>
-                <artifactId>jackson-mapper-asl</artifactId>
-              </exclusion>
-              <exclusion>
-                <groupId>org.codehaus.jackson</groupId>
-                <artifactId>jackson-jaxrs</artifactId>
-              </exclusion>
-              <exclusion>
-                <groupId>org.codehaus.jackson</groupId>
-                <artifactId>jackson-xc</artifactId>
-              </exclusion>
-            </exclusions>
-          </dependency>
-          <dependency>
-            <groupId>org.apache.hadoop</groupId>
-            <artifactId>hadoop-yarn-common</artifactId>
-            <version>${hadoop.version}</version>
-            <exclusions>
-              <exclusion>
-                <groupId>asm</groupId>
-                <artifactId>asm</artifactId>
-              </exclusion>
-              <exclusion>
-                <groupId>org.jboss.netty</groupId>
-                <artifactId>netty</artifactId>
-              </exclusion>
-              <exclusion>
-                <groupId>org.codehaus.jackson</groupId>
-                <artifactId>jackson-core-asl</artifactId>
-              </exclusion>
-              <exclusion>
-                <groupId>org.codehaus.jackson</groupId>
-                <artifactId>jackson-mapper-asl</artifactId>
-              </exclusion>
-              <exclusion>
-                <groupId>org.codehaus.jackson</groupId>
-                <artifactId>jackson-jaxrs</artifactId>
-              </exclusion>
-              <exclusion>
-                <groupId>org.codehaus.jackson</groupId>
-                <artifactId>jackson-xc</artifactId>
-              </exclusion>
-            </exclusions>
-          </dependency>
-          <dependency>
-            <groupId>org.apache.hadoop</groupId>
-            <artifactId>hadoop-yarn-client</artifactId>
-            <version>${hadoop.version}</version>
-            <exclusions>
-              <exclusion>
-                <groupId>asm</groupId>
-                <artifactId>asm</artifactId>
-              </exclusion>
-              <exclusion>
-                <groupId>org.jboss.netty</groupId>
-                <artifactId>netty</artifactId>
-              </exclusion>
-              <exclusion>
-                <groupId>org.codehaus.jackson</groupId>
-                <artifactId>jackson-core-asl</artifactId>
-              </exclusion>
-              <exclusion>
-                <groupId>org.codehaus.jackson</groupId>
-                <artifactId>jackson-mapper-asl</artifactId>
-              </exclusion>
-              <exclusion>
-                <groupId>org.codehaus.jackson</groupId>
-                <artifactId>jackson-jaxrs</artifactId>
-              </exclusion>
-              <exclusion>
-                <groupId>org.codehaus.jackson</groupId>
-                <artifactId>jackson-xc</artifactId>
-              </exclusion>
-            </exclusions>
-          </dependency>
         </dependencies>
       </dependencyManagement>
     </profile>
