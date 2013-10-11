@@ -54,11 +54,11 @@ done
 # Add hadoop conf dir if given -- otherwise FileSystem.*, etc fail !
 # Note, this assumes that there is either a HADOOP_CONF_DIR or YARN_CONF_DIR which hosts
 # the configurtion files.
-# if [ "x" != "x$HADOOP_CONF_DIR" ]; then
-#   CLASSPATH="$CLASSPATH:$HADOOP_CONF_DIR"
-# fi
-# if [ "x" != "x$YARN_CONF_DIR" ]; then
-#   CLASSPATH="$CLASSPATH:$YARN_CONF_DIR"
-# fi
+if [ "x" != "x$HADOOP_CONF_DIR" ]; then
+  CLASSPATH="$CLASSPATH:$HADOOP_CONF_DIR"
+fi
+if [ "x" != "x$YARN_CONF_DIR" ]; then
+  CLASSPATH="$CLASSPATH:$YARN_CONF_DIR"
+fi
 
 echo "$CLASSPATH"
