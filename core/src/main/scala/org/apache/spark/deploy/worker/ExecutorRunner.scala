@@ -110,6 +110,30 @@ private[spark] class ExecutorRunner(
    * the way the JAVA_OPTS are assembled there.
    */
   def buildJavaOpts(): Seq[String] = {
+    def mergeSparkJavaOpts(wlo: Seq[String], uo: Seq[String]): Seq[String] = {
+      def mergeWithSplitChar(splitter: Char, os: Set[String]) = {
+        val keyGroups = os.groupBy(_.takeWhile(_ != splitter))
+        val (solos, dupes) = keyGroups.partition { case (key, values) => values.size == 1 }
+        val (uoDupes, wloDupes) = dupes.partition { case (key, valSet) => valSet.toSeq.intersect(wlo).isEmpty }
+        val wloOverrides = wloDupes.values.toSeq.map(_.toSeq.intersect(wlo))
+
+        uoDupes.foreach { case (_, s) if s.size > 1 =>
+          logError("Conflicting Application-level SPARK_JAVA_OPTS: " + s) }
+        wloOverrides.foreach { s => if (s.size > 1)
+          logError("Conflicting Worker Local SPARK_JAVA_OPTS: " + s) }
+
+        solos.values.map(_.head) ++
+          uoDupes.values.map(_.head) ++
+          wloOverrides.map(_.head)
+      }
+
+      val opts = wlo.toSet ++ uo
+      val (withEquals, withoutEquals) = opts.partition(_.contains("="))
+      val (withColon, withoutColon) = withoutEquals.partition(_.contains(":"))
+      val resultSet = withoutColon ++ mergeWithSplitChar('=', withEquals) ++ mergeWithSplitChar(':', withColon)
+      resultSet.toSeq
+    }
+
     val libraryOpts = getAppEnv("SPARK_LIBRARY_PATH")
       .map(p => List("-Djava.library.path=" + p))
       .getOrElse(Nil)
@@ -123,7 +147,7 @@ private[spark] class ExecutorRunner(
         Seq(sparkHome + "/bin/compute-classpath" + ext),
         extraEnvironment=appDesc.command.environment)
 
-    Seq("-cp", classPath) ++ libraryOpts ++ workerLocalOpts ++ userOpts ++ memoryOpts
+    Seq("-cp", classPath) ++ libraryOpts ++ mergeSparkJavaOpts(workerLocalOpts, userOpts) ++ memoryOpts
   }
 
   /** Spawn a thread that will redirect a given stream to a file */
