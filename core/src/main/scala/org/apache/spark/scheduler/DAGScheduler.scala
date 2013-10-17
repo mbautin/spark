@@ -379,7 +379,7 @@ class DAGScheduler(
         handleTaskCompletion(completion)
 
       case TaskSetFailed(taskSet, reason) =>
-        abortStage(stageIdToStage(taskSet.stageId), reason)
+        abortStage(stageIdToStage.get(taskSet.stageId), reason)
 
       case StopDAGScheduler =>
         // Cancel any active jobs
@@ -556,7 +556,7 @@ class DAGScheduler(
         SparkEnv.get.closureSerializer.newInstance().serialize(tasks.head)
       } catch {
         case e: NotSerializableException =>
-          abortStage(stage, e.toString)
+          abortStage(Some(stage), e.toString)
           running -= stage
           return
       }
@@ -582,7 +582,10 @@ class DAGScheduler(
    */
   private def handleTaskCompletion(event: CompletionEvent) {
     val task = event.task
-    val stage = stageIdToStage(task.stageId)
+    val stage = stageIdToStage.getOrElse(task.stageId, {
+      logInfo("Redundant task %s completed for stage %s.".format(task, task.stageId))
+      return
+    })
 
     def markStageAsFinished(stage: Stage) = {
       val serviceTime = stage.submissionTime match {
@@ -683,12 +686,13 @@ class DAGScheduler(
 
       case FetchFailed(bmAddress, shuffleId, mapId, reduceId) =>
         // Mark the stage that the reducer was in as unrunnable
-        val failedStage = stageIdToStage(task.stageId)
-        running -= failedStage
-        failed += failedStage
-        // TODO: Cancel running tasks in the stage
-        logInfo("Marking " + failedStage + " (" + failedStage.name +
-          ") for resubmision due to a fetch failure")
+        stageIdToStage.get(task.stageId).foreach { failedStage =>
+          running -= failedStage
+          failed += failedStage
+          // TODO: Cancel running tasks in the stage
+          logInfo("Marking " + failedStage + " (" + failedStage.name +
+            ") for resubmision due to a fetch failure")
+        }
         // Mark the map whose fetch failed as broken in the map stage
         val mapStage = shuffleToMapStage(shuffleId)
         if (mapId != -1) {
@@ -711,7 +715,7 @@ class DAGScheduler(
 
       case other =>
         // Unrecognized failure - abort all jobs depending on this stage
-        abortStage(stageIdToStage(task.stageId), task + " failed: " + other)
+        abortStage(stageIdToStage.get(task.stageId), task + " failed: " + other)
     }
   }
 
@@ -756,18 +760,21 @@ class DAGScheduler(
    * Aborts all jobs depending on a particular Stage. This is called in response to a task set
    * being cancelled by the TaskScheduler. Use taskSetFailed() to inject this event from outside.
    */
-  private def abortStage(failedStage: Stage, reason: String) {
-    val dependentStages = resultStageToJob.keys.filter(x => stageDependsOn(x, failedStage)).toSeq
-    failedStage.completionTime = Some(System.currentTimeMillis())
-    for (resultStage <- dependentStages) {
-      val job = resultStageToJob(resultStage)
-      val error = new SparkException("Job failed: " + reason)
-      job.listener.jobFailed(error)
-      listenerBus.post(SparkListenerJobEnd(job, JobFailed(error, Some(failedStage))))
-      idToActiveJob -= resultStage.jobId
-      activeJobs -= job
-      resultStageToJob -= resultStage
-      removeStages(job)
+  private def abortStage(failedStage: Option[Stage], reason: String) {
+    val dependentStages = if (failedStage.isDefined)
+      resultStageToJob.keys.filter(x => stageDependsOn(x, failedStage.get)).toSeq else Seq()
+    failedStage.foreach {stage =>
+      stage.completionTime = Some(System.currentTimeMillis())
+      for (resultStage <- dependentStages) {
+        val job = resultStageToJob(resultStage)
+        val error = new SparkException("Job failed: " + reason)
+        job.listener.jobFailed(error)
+        listenerBus.post(SparkListenerJobEnd(job, JobFailed(error, failedStage)))
+        idToActiveJob -= resultStage.jobId
+        activeJobs -= job
+        resultStageToJob -= resultStage
+        removeStages(job)
+      }
     }
     if (dependentStages.isEmpty) {
       logInfo("Ignoring failure of " + failedStage + " because all jobs depending on it are done")
