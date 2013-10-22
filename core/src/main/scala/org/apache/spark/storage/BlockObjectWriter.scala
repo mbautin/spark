@@ -25,7 +25,7 @@ package org.apache.spark.storage
  *
  * This interface does not support concurrent writes.
  */
-abstract class BlockObjectWriter(val blockId: String) {
+abstract class BlockObjectWriter(val blockId: BlockId) {
 
   var closeEventHandler: () => Unit = _
 
@@ -62,4 +62,9 @@ abstract class BlockObjectWriter(val blockId: String) {
    * Size of the valid writes, in bytes.
    */
   def size(): Long
+
+  /**
+   * Cumulative time spent performing blocking writes, in ns.
+   */
+  def timeWriting(): Long
 }
