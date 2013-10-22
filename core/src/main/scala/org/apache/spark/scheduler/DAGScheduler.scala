@@ -184,7 +184,7 @@ class DAGScheduler(
     shuffleToMapStage.get(shuffleDep.shuffleId) match {
       case Some(stage) => stage
       case None =>
-        val stage = newStage(shuffleDep.rdd, Some(shuffleDep), jobId)
+        val stage = newStage(shuffleDep.rdd, shuffleDep.rdd.partitions.size, Some(shuffleDep), jobId)
         shuffleToMapStage(shuffleDep.shuffleId) = stage
         stage
     }
@@ -197,6 +197,7 @@ class DAGScheduler(
    */
   private def newStage(
       rdd: RDD[_],
+      numTasks: Int,
       shuffleDep: Option[ShuffleDependency[_,_]],
       jobId: Int,
       callSite: Option[String] = None)
@@ -209,9 +210,10 @@ class DAGScheduler(
       mapOutputTracker.registerShuffle(shuffleDep.get.shuffleId, rdd.partitions.size)
     }
     val id = nextStageId.getAndIncrement()
-    val stage = new Stage(id, rdd, shuffleDep, getParentStages(rdd, jobId), jobId, callSite)
+    val stage =
+      new Stage(id, rdd, numTasks, shuffleDep, getParentStages(rdd, jobId), jobId, callSite)
     stageIdToStage(id) = stage
-    stageToInfos(stage) = StageInfo(stage)
+    stageToInfos(stage) = new StageInfo(stage)
     val stageIdSet = jobIdToStageIds.getOrElseUpdate(jobId, new HashSet)
     stageIdSet += id
     stage
@@ -365,7 +367,7 @@ class DAGScheduler(
   private[scheduler] def processEvent(event: DAGSchedulerEvent): Boolean = {
     event match {
       case JobSubmitted(jobId, rdd, func, partitions, allowLocal, callSite, listener, properties) =>
-        val finalStage = newStage(rdd, None, jobId, Some(callSite))
+        val finalStage = newStage(rdd, partitions.size, None, jobId, Some(callSite))
         val job = new ActiveJob(jobId, finalStage, func, partitions, callSite, listener, properties)
         clearCacheLocs()
         logInfo("Got job " + job.jobId + " (" + callSite + ") with " + partitions.length +
@@ -588,7 +590,7 @@ class DAGScheduler(
 
     // must be run listener before possible NotSerializableException
     // should be "StageSubmitted" first and then "JobEnded"
-    listenerBus.post(SparkListenerStageSubmitted(stage, tasks.size, properties))
+    listenerBus.post(SparkListenerStageSubmitted(stageToInfos(stage), properties))
 
     if (tasks.size > 0) {
       // Preemptively serialize a task to make sure it can be serialized. We are catching this
@@ -609,9 +611,7 @@ class DAGScheduler(
       logDebug("New pending tasks: " + myPending)
       taskSched.submitTasks(
         new TaskSet(tasks.toArray, stage.id, stage.newAttemptId(), stage.jobId, properties))
-      if (!stage.submissionTime.isDefined) {
-        stage.submissionTime = Some(System.currentTimeMillis())
-      }
+      stageToInfos(stage).submissionTime = Some(System.currentTimeMillis())
     } else {
       logDebug("Stage " + stage + " is actually done; %b %d %d".format(
         stage.isAvailable, stage.numAvailableOutputs, stage.numPartitions))
@@ -631,12 +631,12 @@ class DAGScheduler(
     })
 
     def markStageAsFinished(stage: Stage) = {
-      val serviceTime = stage.submissionTime match {
+      val serviceTime = stageToInfos(stage).submissionTime match {
         case Some(t) => "%.03f".format((System.currentTimeMillis() - t) / 1000.0)
-        case _ => "Unkown"
+        case _ => "Unknown"
       }
       logInfo("%s (%s) finished in %s s".format(stage, stage.name, serviceTime))
-      stage.completionTime = Some(System.currentTimeMillis)
+      stageToInfos(stage).completionTime = Some(System.currentTimeMillis())
       listenerBus.post(StageCompleted(stageToInfos(stage)))
       running -= stage
     }
@@ -810,10 +810,10 @@ class DAGScheduler(
     val dependentStages = if (failedStage.isDefined)
       resultStageToJob.keys.filter(x => stageDependsOn(x, failedStage.get)).toSeq else Seq()
     failedStage.foreach {stage =>
-      stage.completionTime = Some(System.currentTimeMillis())
+      stageToInfos(stage).completionTime = Some(System.currentTimeMillis())
       for (resultStage <- dependentStages) {
         val job = resultStageToJob(resultStage)
-        val error = new SparkException("Job failed: " + reason)
+        val error = new SparkException("Job aborted: " + reason)
         job.listener.jobFailed(error)
         listenerBus.post(SparkListenerJobEnd(job, JobFailed(error, failedStage)))
         idToActiveJob -= resultStage.jobId
