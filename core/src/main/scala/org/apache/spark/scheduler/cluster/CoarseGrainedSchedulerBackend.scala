@@ -143,9 +143,7 @@ class CoarseGrainedSchedulerBackend(scheduler: ClusterScheduler, actorSystem: Ac
     }
 
     // Remove a disconnected slave from the cluster
-    def removeExecutor(fullExecutorId: String, reason: String) {
-      val executorId = if (fullExecutorId.contains("/")) fullExecutorId.split("/")(1)
-                       else fullExecutorId
+    def removeExecutor(executorId: String, reason: String) {
       if (executorActor.contains(executorId)) {
         logInfo("Executor " + executorId + " disconnected, so removing it")
         val numCores = freeCores(executorId)
@@ -156,9 +154,6 @@ class CoarseGrainedSchedulerBackend(scheduler: ClusterScheduler, actorSystem: Ac
         freeCores -= executorId
         totalCoreCount.addAndGet(-numCores)
         scheduler.executorLost(executorId, SlaveLost(reason))
-      } else {
-        logInfo("Cannot remove executor " + executorId + " (reason " + reason + "): not found. " +
-                "Existing executors: [" + executorActor.keys.toIndexedSeq.sorted.mkString(", ") + "]")
       }
     }
   }
