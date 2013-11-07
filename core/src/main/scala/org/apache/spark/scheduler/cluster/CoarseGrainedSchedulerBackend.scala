@@ -87,8 +87,14 @@ class CoarseGrainedSchedulerBackend(scheduler: ClusterScheduler, actorSystem: Ac
       case StatusUpdate(executorId, taskId, state, data) =>
         scheduler.statusUpdate(taskId, state, data.value)
         if (TaskState.isFinished(state)) {
-          freeCores(executorId) += 1
-          makeOffers(executorId)
+          if (executorActor.contains(executorId)) {
+            freeCores(executorId) += 1
+            makeOffers(executorId)
+          } else {
+            // Ignoring the update since we don't know about the executor.
+            val msg = "Ignored task status update (%d state %s) from unknown executor %s with ID %s"
+            logWarning(msg.format(taskId, state, sender, executorId))
+          }
         }
 
       case ReviveOffers =>
@@ -143,9 +149,7 @@ class CoarseGrainedSchedulerBackend(scheduler: ClusterScheduler, actorSystem: Ac
     }
 
     // Remove a disconnected slave from the cluster
-    def removeExecutor(fullExecutorId: String, reason: String) {
-      val executorId = if (fullExecutorId.contains("/")) fullExecutorId.split("/")(1)
-                       else fullExecutorId
+    def removeExecutor(executorId: String, reason: String) {
       if (executorActor.contains(executorId)) {
         logInfo("Executor " + executorId + " disconnected, so removing it")
         val numCores = freeCores(executorId)
@@ -156,9 +160,6 @@ class CoarseGrainedSchedulerBackend(scheduler: ClusterScheduler, actorSystem: Ac
         freeCores -= executorId
         totalCoreCount.addAndGet(-numCores)
         scheduler.executorLost(executorId, SlaveLost(reason))
-      } else {
-        logInfo("Cannot remove executor " + executorId + " (reason " + reason + "): not found. " +
-                "Existing executors: [" + executorActor.keys.toIndexedSeq.sorted.mkString(", ") + "]")
       }
     }
   }
@@ -180,7 +181,9 @@ class CoarseGrainedSchedulerBackend(scheduler: ClusterScheduler, actorSystem: Ac
       Props(new DriverActor(properties)), name = CoarseGrainedSchedulerBackend.ACTOR_NAME)
   }
 
-  private val timeout = Duration.create(System.getProperty("spark.akka.askTimeout", "10").toLong, "seconds")
+  private val timeout = {
+    Duration.create(System.getProperty("spark.akka.askTimeout", "10").toLong, "seconds")
+  }
 
   def stopExecutors() {
     try {
