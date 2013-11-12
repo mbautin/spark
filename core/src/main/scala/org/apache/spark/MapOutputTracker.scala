@@ -247,7 +247,7 @@ private[spark] class MapOutputTracker extends Logging {
         case Some(bytes) =>
           return bytes
         case None =>
-          statuses = mapStatuses(shuffleId)
+          statuses = mapStatuses.getOrElse(shuffleId, Array[MapStatus]())
           epochGotten = epoch
       }
     }
@@ -261,9 +261,13 @@ private[spark] class MapOutputTracker extends Logging {
         cachedSerializedStatuses(shuffleId) = bytes
       }
     }
-    return bytes
+    bytes
   }
 
+  def has(shuffleId: Int): Boolean = {
+    cachedSerializedStatuses.get(shuffleId).isDefined || mapStatuses.contains(shuffleId)
+  }
+  
   // Serialize an array of map output locations into an efficient byte format so that we can send
   // it to reduce tasks. We do this by compressing the serialized bytes using GZIP. They will
   // generally be pretty compressible because many map outputs will be on the same hostname.
