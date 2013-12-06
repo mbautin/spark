@@ -45,11 +45,13 @@ private[spark] class SimrSchedulerBackend(
 
     logInfo("Writing to HDFS file: "  + driverFilePath)
     logInfo("Writing Akka address: "  + driverUrl)
+    logInfo("Writing Spark UI Address: " + sc.ui.appUIAddress)
 
     // Create temporary file to prevent race condition where executors get empty driverUrl file
     val temp = fs.create(tmpPath, true)
     temp.writeUTF(driverUrl)
     temp.writeInt(maxCores)
+    temp.writeUTF(sc.ui.appUIAddress)
     temp.close()
 
     // "Atomic" rename
