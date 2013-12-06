@@ -114,8 +114,6 @@ class DAGScheduler(
 
   def numTotalJobs: Int = nextJobId.get()
 
-  val jobIdToStageIds = new HashMap[Int, HashSet[Int]]
-
   private val nextStageId = new AtomicInteger(0)
 
   private[scheduler] val jobIdToStageIds = new TimeStampedHashMap[Int, HashSet[Int]]
@@ -239,8 +237,8 @@ class DAGScheduler(
   {
     val stage = newStage(rdd, numTasks, Some(shuffleDep), jobId, callSite)
     if (mapOutputTracker.has(shuffleDep.shuffleId)) {
-      val serLocs = mapOutputTracker.getSerializedMapOutputStatuses(shuffleDep.shuffleId)
-      val locs = MapOutputTracker.deserializeMapStatuses(serLocs)
+      val serLocs = mapOutputTracker.getSerializedLocations(shuffleDep.shuffleId)
+      val locs = mapOutputTracker.deserializeStatuses(serLocs)
       for (i <- 0 until locs.size) stage.outputLocs(i) = List(locs(i))
       stage.numAvailableOutputs = locs.size
     } else {
@@ -548,11 +546,6 @@ class DAGScheduler(
       case TaskSetFailed(taskSet, reason) =>
         stageIdToStage.get(taskSet.stageId).foreach { abortStage(_, reason) }
 
-      case ResubmitFailedStages =>
-        if (failed.size > 0) {
-          resubmitFailedStages()
-        }
-
       case StopDAGScheduler =>
         // Cancel any active jobs
         for (job <- activeJobs) {
@@ -757,7 +750,7 @@ class DAGScheduler(
         SparkEnv.get.closureSerializer.newInstance().serialize(tasks.head)
       } catch {
         case e: NotSerializableException =>
-          abortStage(Some(stage), "Task not serializable: " + e.toString)
+          abortStage(stage, "Task not serializable: " + e.toString)
           running -= stage
           return
       }
@@ -920,7 +913,7 @@ class DAGScheduler(
 
       case other =>
         // Unrecognized failure - abort all jobs depending on this stage
-        abortStage(stageIdToStage.get(task.stageId), task + " failed: " + other)
+        abortStage(stageIdToStage(task.stageId), task + " failed: " + other)
     }
   }
 
