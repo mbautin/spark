@@ -76,11 +76,6 @@ class DAGScheduler(
     eventProcessActor ! GettingResultEvent(task, taskInfo)
   }
 
-  // Called to report that a task has completed and results are being fetched remotely.
-  def taskGettingResult(task: Task[_], taskInfo: TaskInfo) {
-    eventQueue.put(GettingResultEvent(task, taskInfo))
-  }
-
   // Called by TaskScheduler to report task completions or failures.
   def taskEnded(
       task: Task[_],
@@ -439,7 +434,6 @@ class DAGScheduler(
    * Submit a job to the job scheduler and get a JobWaiter object back. The JobWaiter object
    * can be used to block until the the job finishes executing or can be used to cancel the job.
    */
->>>>>>> 2fd781d347107be34e6a4251b8bd0b35b351785a
   def submitJob[T, U](
       rdd: RDD[T],
       func: (TaskContext, Iterator[T]) => U,
@@ -916,13 +910,12 @@ class DAGScheduler(
 
       case FetchFailed(bmAddress, shuffleId, mapId, reduceId) =>
         // Mark the stage that the reducer was in as unrunnable
-        stageIdToStage.get(task.stageId).foreach { failedStage =>
-          running -= failedStage
-          failed += failedStage
-          // TODO: Cancel running tasks in the stage
-          logInfo("Marking " + failedStage + " (" + failedStage.name +
-            ") for resubmision due to a fetch failure")
-        }
+        val failedStage = stageIdToStage(task.stageId)
+        running -= failedStage
+        failed += failedStage
+        // TODO: Cancel running tasks in the stage
+        logInfo("Marking " + failedStage + " (" + failedStage.name +
+          ") for resubmision due to a fetch failure")
         // Mark the map whose fetch failed as broken in the map stage
         val mapStage = shuffleToMapStage(shuffleId)
         if (mapId != -1) {

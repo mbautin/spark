@@ -33,18 +33,6 @@
 
   <dependencies>
     <dependency>
-      <groupId>${akka.group}</groupId>
-      <artifactId>akka-actor</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>${akka.group}</groupId>
-      <artifactId>akka-remote</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>${akka.group}</groupId>
-      <artifactId>akka-slf4j</artifactId>
-    </dependency>
-    <dependency>
       <groupId>org.apache.spark</groupId>
       <artifactId>spark-core_2.10</artifactId>
       <version>${project.version}</version>
