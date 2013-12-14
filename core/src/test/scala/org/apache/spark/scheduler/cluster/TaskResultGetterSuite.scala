@@ -44,13 +44,13 @@ class ResultDeletingTaskResultGetter(sparkEnv: SparkEnv, scheduler: ClusterSched
         case IndirectTaskResult(blockId) =>
           sparkEnv.blockManager.master.removeBlock(blockId)
         case directResult: DirectTaskResult[_] =>
-          taskSetManager.abort("Internal error: expect only indirect results") 
+          taskSetManager.abort("Internal error: expect only indirect results")
       }
       serializedData.rewind()
       removedResult = true
     }
     super.enqueueSuccessfulTask(taskSetManager, tid, serializedData)
-  } 
+  }
 }
 
 /**
@@ -80,9 +80,9 @@ class TaskResultGetterSuite extends FunSuite with BeforeAndAfter with BeforeAndA
     assert(result === 2)
   }
 
-  test("handling results larger than Akka frame size") { 
+  test("handling results larger than Akka frame size") {
     val akkaFrameSize =
-      sc.env.actorSystem.settings.config.getBytes("akka.remote.netty.message-frame-size").toInt
+      sc.env.actorSystem.settings.config.getBytes("akka.remote.netty.tcp.maximum-frame-size").toInt
     val result = sc.parallelize(Seq(1), 1).map(x => 1.to(akkaFrameSize).toArray).reduce((x, y) => x)
     assert(result === 1.to(akkaFrameSize).toArray)
 
@@ -103,7 +103,7 @@ class TaskResultGetterSuite extends FunSuite with BeforeAndAfter with BeforeAndA
     }
     scheduler.taskResultGetter = new ResultDeletingTaskResultGetter(sc.env, scheduler)
     val akkaFrameSize =
-      sc.env.actorSystem.settings.config.getBytes("akka.remote.netty.message-frame-size").toInt
+      sc.env.actorSystem.settings.config.getBytes("akka.remote.netty.tcp.maximum-frame-size").toInt
     val result = sc.parallelize(Seq(1), 1).map(x => 1.to(akkaFrameSize).toArray).reduce((x, y) => x)
     assert(result === 1.to(akkaFrameSize).toArray)
 

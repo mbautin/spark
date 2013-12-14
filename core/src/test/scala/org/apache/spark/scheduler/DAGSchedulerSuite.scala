@@ -23,7 +23,7 @@ import org.scalatest.FunSuite
 import org.scalatest.BeforeAndAfter
 
 import org.apache.spark.LocalSparkContext
-import org.apache.spark.MapOutputTracker
+import org.apache.spark.MapOutputTrackerMaster
 import org.apache.spark.SparkContext
 import org.apache.spark.Partition
 import org.apache.spark.TaskContext
@@ -64,7 +64,7 @@ class DAGSchedulerSuite extends FunSuite with BeforeAndAfter with LocalSparkCont
     override def defaultParallelism() = 2
   }
 
-  var mapOutputTracker: MapOutputTracker = null
+  var mapOutputTracker: MapOutputTrackerMaster = null
   var scheduler: DAGScheduler = null
 
   /**
@@ -99,8 +99,8 @@ class DAGSchedulerSuite extends FunSuite with BeforeAndAfter with LocalSparkCont
     taskSets.clear()
     cacheLocations.clear()
     results.clear()
-    mapOutputTracker = new MapOutputTracker()
-    scheduler = new DAGScheduler(taskScheduler, mapOutputTracker, blockManagerMaster, null) {
+    mapOutputTracker = new MapOutputTrackerMaster()
+    scheduler = new DAGScheduler(taskScheduler, mapOutputTracker, blockManagerMaster, sc.env) {
       override def runLocally(job: ActiveJob) {
         // don't bother with the thread while unit testing
         runLocallyWithinThread(job)

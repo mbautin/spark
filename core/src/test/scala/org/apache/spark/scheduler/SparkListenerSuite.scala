@@ -141,11 +141,11 @@ class SparkListenerSuite extends FunSuite with LocalSparkContext with ShouldMatc
 
     val listener = new SaveTaskEvents
     sc.addSparkListener(listener)
- 
+
     // Make a task whose result is larger than the akka frame size
     System.setProperty("spark.akka.frameSize", "1")
     val akkaFrameSize =
-      sc.env.actorSystem.settings.config.getBytes("akka.remote.netty.message-frame-size").toInt
+      sc.env.actorSystem.settings.config.getBytes("akka.remote.netty.tcp.maximum-frame-size").toInt
     val result = sc.parallelize(Seq(1), 1).map(x => 1.to(akkaFrameSize).toArray).reduce((x,y) => x)
     assert(result === 1.to(akkaFrameSize).toArray)
 
@@ -163,7 +163,7 @@ class SparkListenerSuite extends FunSuite with LocalSparkContext with ShouldMatc
 
     val listener = new SaveTaskEvents
     sc.addSparkListener(listener)
- 
+
     // Make a task whose result is larger than the akka frame size
     val result = sc.parallelize(Seq(1), 1).map(x => 2 * x).reduce((x, y) => x)
     assert(result === 2)
