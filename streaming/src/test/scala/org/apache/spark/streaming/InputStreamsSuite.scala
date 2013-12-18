@@ -314,45 +314,6 @@ class InputStreamsSuite extends TestSuiteBase with BeforeAndAfter {
     logInfo("--------------------------------")
     assert(output.sum === numTotalRecords)
   }
-
-  test("multi-thread receiver") {
-    // set up the test receiver
-    val numThreads = 10
-    val numRecordsPerThread = 1000
-    val numTotalRecords = numThreads * numRecordsPerThread
-    val testReceiver = new MultiThreadTestReceiver(numThreads, numRecordsPerThread)
-    MultiThreadTestReceiver.haveAllThreadsFinished = false
-
-    // set up the network stream using the test receiver
-    val ssc = new StreamingContext(master, framework, batchDuration)
-    val networkStream = ssc.networkStream[Int](testReceiver)
-    val countStream = networkStream.count
-    val outputBuffer = new ArrayBuffer[Seq[Long]] with SynchronizedBuffer[Seq[Long]]
-    val outputStream = new TestOutputStream(countStream, outputBuffer)
-    def output = outputBuffer.flatMap(x => x)
-    ssc.registerOutputStream(outputStream)
-    ssc.start()
-
-    // Let the data from the receiver be received
-    val clock = ssc.scheduler.clock.asInstanceOf[ManualClock]
-    val startTime = System.currentTimeMillis()
-    while((!MultiThreadTestReceiver.haveAllThreadsFinished || output.sum < numTotalRecords) &&
-      System.currentTimeMillis() - startTime < 5000) {
-      Thread.sleep(100)
-      clock.addToTime(batchDuration.milliseconds)
-    }
-    Thread.sleep(1000)
-    logInfo("Stopping context")
-    ssc.stop()
-
-    // Verify whether data received was as expected
-    logInfo("--------------------------------")
-    logInfo("output.size = " + outputBuffer.size)
-    logInfo("output")
-    outputBuffer.foreach(x => logInfo("[" + x.mkString(",") + "]"))
-    logInfo("--------------------------------")
-    assert(output.sum === numTotalRecords)
-  }
 }
 
 
