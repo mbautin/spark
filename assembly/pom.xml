@@ -142,16 +142,6 @@
         </dependency>
       </dependencies>
     </profile>
-    <profile>
-      <id>new-yarn</id>
-      <dependencies>
-        <dependency>
-          <groupId>org.apache.spark</groupId>
-          <artifactId>spark-yarn_2.9.3</artifactId>
-          <version>${project.version}</version>
-        </dependency>
-      </dependencies>
-    </profile>
 
     <profile>
       <id>bigtop-dist</id>
