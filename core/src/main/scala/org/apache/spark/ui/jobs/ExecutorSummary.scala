@@ -15,24 +15,13 @@
  * limitations under the License.
  */
 
-package org.apache.spark.scheduler.cluster
+package org.apache.spark.ui.jobs
 
-import org.apache.spark.executor.ExecutorExitCode
-
-/**
- * Represents an explanation for a executor or whole slave failing or exiting.
- */
-private[spark]
-class ExecutorLossReason(val message: String) {
-  override def toString: String = message
-}
-
-private[spark]
-case class ExecutorExited(val exitCode: Int)
-  extends ExecutorLossReason(ExecutorExitCode.explainExitCode(exitCode)) {
-}
-
-private[spark]
-case class SlaveLost(_message: String = "Slave lost")
-  extends ExecutorLossReason(_message) {
+/** class for reporting aggregated metrics for each executors in stageUI */
+private[spark] class ExecutorSummary {
+  var taskTime : Long = 0
+  var failedTasks : Int = 0
+  var succeededTasks : Int = 0
+  var shuffleRead : Long = 0
+  var shuffleWrite : Long = 0
 }

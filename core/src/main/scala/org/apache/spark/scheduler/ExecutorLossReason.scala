@@ -15,27 +15,24 @@
  * limitations under the License.
  */
 
-package org.apache.spark.streaming
+package org.apache.spark.scheduler
 
-import java.util.concurrent.atomic.AtomicLong
+import org.apache.spark.executor.ExecutorExitCode
 
-private[streaming]
-class Job(val time: Time, func: () => _) {
-  val id = Job.getNewId()
-  def run(): Long = {
-    val startTime = System.currentTimeMillis 
-    func() 
-    val stopTime = System.currentTimeMillis
-    (stopTime - startTime)
-  }
-
-  override def toString = "streaming job " + id + " @ " + time 
+/**
+ * Represents an explanation for a executor or whole slave failing or exiting.
+ */
+private[spark]
+class ExecutorLossReason(val message: String) {
+  override def toString: String = message
 }
 
-private[streaming]
-object Job {
-  val id = new AtomicLong(0)
-
-  def getNewId() = id.getAndIncrement()
+private[spark]
+case class ExecutorExited(val exitCode: Int)
+  extends ExecutorLossReason(ExecutorExitCode.explainExitCode(exitCode)) {
 }
 
+private[spark]
+case class SlaveLost(_message: String = "Slave lost")
+  extends ExecutorLossReason(_message) {
+}

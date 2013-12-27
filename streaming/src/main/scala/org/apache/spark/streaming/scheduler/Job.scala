@@ -15,23 +15,27 @@
  * limitations under the License.
  */
 
-package org.apache.spark.scheduler.cluster
+package org.apache.spark.streaming.scheduler
 
-import org.apache.spark.SparkContext
+import org.apache.spark.streaming.Time
 
 /**
- * A backend interface for cluster scheduling systems that allows plugging in different ones under
- * ClusterScheduler. We assume a Mesos-like model where the application gets resource offers as
- * machines become available and can launch tasks on them.
+ * Class representing a Spark computation. It may contain multiple Spark jobs.
  */
-private[spark] trait SchedulerBackend {
-  def start(): Unit
-  def stop(): Unit
-  def reviveOffers(): Unit
-  def defaultParallelism(): Int
+private[streaming]
+class Job(val time: Time, func: () => _) {
+  var id: String = _
 
-  def killTask(taskId: Long, executorId: String): Unit = throw new UnsupportedOperationException
+  def run(): Long = {
+    val startTime = System.currentTimeMillis 
+    func() 
+    val stopTime = System.currentTimeMillis
+    (stopTime - startTime)
+  }
 
-  // Memory used by each executor (in megabytes)
-  protected val executorMemory: Int = SparkContext.executorMemoryRequested
+  def setId(number: Int) {
+    id = "streaming job " + time + "." + number
+  }
+
+  override def toString = id
 }

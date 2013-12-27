@@ -114,6 +114,9 @@ object SparkBuild extends Build {
     fork := true,
     javaOptions += "-Xmx3g",
 
+    // Show full stack trace and duration in test cases.
+    testOptions in Test += Tests.Argument("-oDF"),
+
     // Only allow one test at a time, even across projects, since they run in the same JVM
     concurrentRestrictions in Global += Tags.limit(Tags.Test, 1),
 

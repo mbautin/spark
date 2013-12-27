@@ -15,10 +15,23 @@
  * limitations under the License.
  */
 
-package org.apache.spark.scheduler.cluster
+package org.apache.spark.scheduler
+
+import org.apache.spark.SparkContext
 
 /**
- * Represents free resources available on an executor.
+ * A backend interface for scheduling systems that allows plugging in different ones under
+ * ClusterScheduler. We assume a Mesos-like model where the application gets resource offers as
+ * machines become available and can launch tasks on them.
  */
-private[spark]
-class WorkerOffer(val executorId: String, val host: String, val cores: Int)
+private[spark] trait SchedulerBackend {
+  def start(): Unit
+  def stop(): Unit
+  def reviveOffers(): Unit
+  def defaultParallelism(): Int
+
+  def killTask(taskId: Long, executorId: String): Unit = throw new UnsupportedOperationException
+
+  // Memory used by each executor (in megabytes)
+  protected val executorMemory: Int = SparkContext.executorMemoryRequested
+}
