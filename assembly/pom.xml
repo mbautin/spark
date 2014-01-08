@@ -227,50 +227,6 @@
                       </mapper>
                     </data>
                     <data>
-                      <src>${basedir}/../spark-class</src>
-                      <type>file</type>
-                      <mapper>
-                        <type>perm</type>
-                        <user>${deb.user}</user>
-                        <group>${deb.user}</group>
-                        <prefix>${deb.install.path}</prefix>
-                        <filemode>744</filemode>
-                      </mapper>
-                    </data>
-                    <data>
-                      <src>${basedir}/../spark-executor</src>
-                      <type>file</type>
-                      <mapper>
-                        <type>perm</type>
-                        <user>${deb.user}</user>
-                        <group>${deb.user}</group>
-                        <prefix>${deb.install.path}</prefix>
-                        <filemode>744</filemode>
-                      </mapper>
-                    </data>
-                    <data>
-                      <src>${basedir}/../spark-shell</src>
-                      <type>file</type>
-                      <mapper>
-                        <type>perm</type>
-                        <user>${deb.user}</user>
-                        <group>${deb.user}</group>
-                        <prefix>${deb.install.path}</prefix>
-                        <filemode>744</filemode>
-                      </mapper>
-                    </data>
-                    <data>
-                      <src>${basedir}/../pyspark</src>
-                      <type>file</type>
-                      <mapper>
-                        <type>perm</type>
-                        <user>${deb.user}</user>
-                        <group>${deb.user}</group>
-                        <prefix>${deb.install.path}</prefix>
-                        <filemode>744</filemode>
-                      </mapper>
-                    </data>
-                    <data>
                       <src>${basedir}/src/deb/RELEASE</src>
                       <type>file</type>
                       <mapper>
@@ -293,6 +249,17 @@
                     </data>
                     <data>
                       <src>${basedir}/../bin</src>
+                      <type>directory</type>
+                      <mapper>
+                        <type>perm</type>
+                        <user>${deb.user}</user>
+                        <group>${deb.user}</group>
+                        <prefix>${deb.install.path}/bin</prefix>
+                        <filemode>744</filemode>
+                      </mapper>
+                    </data>
+                    <data>
+                      <src>${basedir}/../sbin</src>
                       <type>directory</type>
                       <mapper>
                         <type>perm</type>
