@@ -834,7 +834,7 @@ class SparkILoop(in0: Option[BufferedReader], protected val out: JPrintWriter,
 
   // runs :load `file` on any files passed via -i
   def loadFiles(settings: Settings) = settings match {
-    case settings: GenericRunnerSettings =>
+    case settings: SparkRunnerSettings =>
       for (filename <- settings.loadfiles.value) {
         val cmd = ":load " + filename
         command(cmd)
@@ -901,7 +901,6 @@ class SparkILoop(in0: Option[BufferedReader], protected val out: JPrintWriter,
     addThunk(printWelcome())
     addThunk(initializeSpark())
 
-    loadFiles(settings)
     // it is broken on startup; go ahead and exit
     if (intp.reporter.hasErrors)
       return false
@@ -920,6 +919,8 @@ class SparkILoop(in0: Option[BufferedReader], protected val out: JPrintWriter,
       postInitialization()
     }
     // printWelcome()
+
+    loadFiles(settings)
 
     try loop()
     catch AbstractOrMissingHandler()
@@ -956,7 +957,7 @@ class SparkILoop(in0: Option[BufferedReader], protected val out: JPrintWriter,
 
   /** process command-line arguments and do as they request */
   def process(args: Array[String]): Boolean = {
-    val command = new CommandLine(args.toList, echo)
+    val command = new SparkCommandLine(args.toList, msg => echo(msg))
     def neededHelp(): String =
       (if (command.settings.help.value) command.usageMsg + "\n" else "") +
       (if (command.settings.Xhelp.value) command.xusageMsg + "\n" else "")
