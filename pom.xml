@@ -150,13 +150,13 @@
     <repository>
       <id>cloudera-repo</id>
       <name>Cloudera Repository</name>
-      <url>https://repository.cloudera.com/artifactory/cloudera-repos/</url>
       <releases>
         <enabled>true</enabled>
       </releases>
       <snapshots>
         <enabled>false</enabled>
       </snapshots>
+      <url>https://repository.cloudera.com/artifactory/cloudera-repos</url>
     </repository>
   </repositories>
 
