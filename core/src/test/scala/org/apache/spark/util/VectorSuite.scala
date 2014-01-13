@@ -15,22 +15,30 @@
  * limitations under the License.
  */
 
-package org.apache.spark.streaming.mqtt
+package org.apache.spark.util
 
-import org.apache.spark.streaming.{StreamingContext, TestSuiteBase}
-import org.apache.spark.storage.StorageLevel
+import scala.util.Random
 
-class MQTTStreamSuite extends TestSuiteBase {
+import org.scalatest.FunSuite
 
-  test("mqtt input stream") {
-    val ssc = new StreamingContext(master, framework, batchDuration)
-    val brokerUrl = "abc"
-    val topic = "def"
+/**
+ * Tests org.apache.spark.util.Vector functionality
+ */
+class VectorSuite extends FunSuite {
 
-    // tests the API, does not actually test data receiving
-    val test1 = MQTTUtils.createStream(ssc, brokerUrl, topic)
-    val test2 = MQTTUtils.createStream(ssc, brokerUrl, topic, StorageLevel.MEMORY_AND_DISK_SER_2)
+  def verifyVector(vector: Vector, expectedLength: Int) = {
+    assert(vector.length == expectedLength)
+    assert(vector.elements.min > 0.0)
+    assert(vector.elements.max < 1.0)
+  }
 
-    // TODO: Actually test receiving data
+  test("random with default random number generator") {
+    val vector100 = Vector.random(100)
+    verifyVector(vector100, 100)
+  }
+
+  test("random with given random number generator") {
+    val vector100 = Vector.random(100, new Random(100))
+    verifyVector(vector100, 100)
   }
 }

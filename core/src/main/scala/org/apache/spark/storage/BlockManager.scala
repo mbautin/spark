@@ -83,8 +83,6 @@ private[spark] class BlockManager(
 
   val heartBeatFrequency = BlockManager.getHeartBeatFrequency(conf)
 
-  val hostPort = Utils.localHostPort(conf)
-
   val slaveActor = actorSystem.actorOf(Props(new BlockManagerSlaveActor(this)),
     name = "BlockManagerActor" + BlockManager.ID_GENERATOR.next)
 
@@ -159,7 +157,7 @@ private[spark] class BlockManager(
 
   /**
    * Reregister with the master and report all blocks to it. This will be called by the heart beat
-   * thread if our heartbeat to the block amnager indicates that we were not registered.
+   * thread if our heartbeat to the block manager indicates that we were not registered.
    *
    * Note that this method must be called without any BlockInfo locks held.
    */
@@ -412,7 +410,7 @@ private[spark] class BlockManager(
       logDebug("The value of block " + blockId + " is null")
     }
     logDebug("Block " + blockId + " not found")
-    return None
+    None
   }
 
   /**
@@ -864,7 +862,7 @@ private[spark] object BlockManager extends Logging {
   val ID_GENERATOR = new IdGenerator
 
   def getMaxMemory(conf: SparkConf): Long = {
-    val memoryFraction = conf.getDouble("spark.storage.memoryFraction", 0.66)
+    val memoryFraction = conf.getDouble("spark.storage.memoryFraction", 0.6)
     (Runtime.getRuntime.maxMemory * memoryFraction).toLong
   }
 
