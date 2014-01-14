@@ -54,7 +54,11 @@ class SparkEnv private[spark] (
     val httpFileServer: HttpFileServer,
     val sparkFilesDir: String,
     val metricsSystem: MetricsSystem,
-    val conf: SparkConf) {
+    val conf: SparkConf) extends Logging {
+
+  // A mapping of thread ID to amount of memory used for shuffle in bytes
+  // All accesses should be manually synchronized
+  val shuffleMemoryMap = mutable.HashMap[Long, Long]()
 
   private val pythonWorkers = mutable.HashMap[(String, Map[String, String]), PythonWorkerFactory]()
 
@@ -126,16 +130,6 @@ object SparkEnv extends Logging {
     // figure out which port number Akka actually bound to and set spark.driver.port to it.
     if (isDriver && port == 0) {
       conf.set("spark.driver.port",  boundPort.toString)
-    }
-
-    // set only if unset until now.
-    if (!conf.contains("spark.hostPort")) {
-      if (!isDriver){
-        // unexpected
-        Utils.logErrorWithStack("Unexpected NOT to have spark.hostPort set")
-      }
-      Utils.checkHost(hostname)
-      conf.set("spark.hostPort",  hostname + ":" + boundPort)
     }
 
     val classLoader = Thread.currentThread.getContextClassLoader
