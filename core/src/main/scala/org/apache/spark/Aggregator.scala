@@ -39,10 +39,6 @@ case class Aggregator[K, V, C] (
   def combineValuesByKey(iter: Iterator[_ <: Product2[K, V]]): Iterator[(K, C)] =
     combineValuesByKey(iter, null)
 
-  @deprecated("use combineValuesByKey with TaskContext argument", "0.9.0")
-  def combineValuesByKey(iter: Iterator[_ <: Product2[K, V]]): Iterator[(K, C)] =
-    combineValuesByKey(iter, null)
-
   def combineValuesByKey(iter: Iterator[_ <: Product2[K, V]],
                          context: TaskContext): Iterator[(K, C)] = {
     if (!externalSorting) {
