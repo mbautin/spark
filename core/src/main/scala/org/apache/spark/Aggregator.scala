@@ -33,8 +33,11 @@ case class Aggregator[K, V, C] (
     mergeValue: (C, V) => C,
     mergeCombiners: (C, C) => C) {
 
-  private val sparkConf = SparkEnv.get.conf
-  private val externalSorting = sparkConf.getBoolean("spark.shuffle.spill", true)
+  private val externalSorting = SparkEnv.get.conf.getBoolean("spark.shuffle.spill", true)
+
+  @deprecated("use combineValuesByKey with TaskContext argument", "0.9.0")
+  def combineValuesByKey(iter: Iterator[_ <: Product2[K, V]]): Iterator[(K, C)] =
+    combineValuesByKey(iter, null)
 
   @deprecated("use combineValuesByKey with TaskContext argument", "0.9.0")
   def combineValuesByKey(iter: Iterator[_ <: Product2[K, V]]): Iterator[(K, C)] =
