@@ -5,7 +5,6 @@ import scala.concurrent.{Await, Future}
 import scala.collection.mutable.ArrayBuffer
 import scala.concurrent.duration.Duration
 import scala.annotation.tailrec
-import scala.reflect.ClassTag
 import org.apache.spark.rdd.RDD
 
 /**Iterable whose iterator iterates over all elements of an RDD without fetching all partitions to the driver process
@@ -15,7 +14,7 @@ import org.apache.spark.rdd.RDD
  * @param timeOut How long to wait for each partition before failing.
  * @tparam T
  */
-class RDDiterable[T: ClassTag](rdd: RDD[T], prefetchPartitions: Int, timeOut: Duration) extends Serializable with Iterable[T] {
+class RDDiterable[T: ClassManifest](rdd: RDD[T], prefetchPartitions: Int, timeOut: Duration) extends Serializable with Iterable[T] {
 
   def iterator = new Iterator[T] {
     var partitions = Range(0, rdd.partitions.size)
