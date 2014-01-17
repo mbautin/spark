@@ -38,7 +38,7 @@ import org.apache.spark.partial.CountEvaluator
 import org.apache.spark.partial.GroupedCountEvaluator
 import org.apache.spark.partial.PartialResult
 import org.apache.spark.storage.StorageLevel
-import org.apache.spark.util.{RDDiterable, Utils, BoundedPriorityQueue, SerializableHyperLogLog}
+import org.apache.spark.util.{RDDiterable, Utils, BoundedPriorityQueue}
 
 import org.apache.spark.SparkContext._
 import org.apache.spark._
