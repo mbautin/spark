@@ -41,7 +41,7 @@ import org.apache.spark.partial.CountEvaluator
 import org.apache.spark.partial.GroupedCountEvaluator
 import org.apache.spark.partial.PartialResult
 import org.apache.spark.storage.StorageLevel
-import org.apache.spark.util.{RDDiterable, Utils, BoundedPriorityQueue, SerializableHyperLogLog}
+import org.apache.spark.util.{Utils, BoundedPriorityQueue, SerializableHyperLogLog}
 
 import org.apache.spark.SparkContext._
 import org.apache.spark._
@@ -603,8 +603,6 @@ abstract class RDD[T: ClassTag](
     sc.runJob(this, (iter: Iterator[T]) => f(iter))
   }
 
-
-
   /**
    * Return an array that contains all of the elements in this RDD.
    */
@@ -626,14 +624,16 @@ abstract class RDD[T: ClassTag](
   }
 
   /**
-   * Return iterable that lazily fetches partitions
-   * @param prefetchPartitions How many partitions to prefetch. Larger value increases parallelism but also increases
-   *                              driver memory requirement
+   * Return iterator that lazily fetches partitions
+   * @param prefetchPartitions How many partitions to prefetch. Larger value increases parallelism
+   *                           but also increases driver memory requirement.
+   * @param partitionBatchSize How many partitions fetch per job
    * @param timeOut how long to wait for each partition fetch
    * @return Iterable of every element in this RDD
    */
-  def toIterable(prefetchPartitions: Int = 1, timeOut: Duration = Duration(30, TimeUnit.SECONDS)) = {
-    new RDDiterable[T](this, prefetchPartitions, timeOut)
+  def toIterator(prefetchPartitions: Int = 1, partitionBatchSize: Int = 10,
+                 timeOut: Duration = Duration(30, TimeUnit.SECONDS)):Iterator[T] = {
+    new RDDiterator[T](this, prefetchPartitions,partitionBatchSize, timeOut)
   }
 
   /**
