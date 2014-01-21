@@ -79,8 +79,6 @@
   </dependencies>
 
   <build>
-    <outputDirectory>target/scala-${scala.binary.version}/classes</outputDirectory>
-    <testOutputDirectory>target/scala-${scala.binary.version}/test-classes</testOutputDirectory>
     <plugins>
       <!-- Use the shade plugin to create a big JAR with all the dependencies -->
       <plugin>
@@ -152,7 +150,6 @@
         </dependency>
       </dependencies>
     </profile>
-
     <profile>
       <id>bigtop-dist</id>
       <!-- This profile uses the assembly plugin to create a special "dist" package for BigTop
