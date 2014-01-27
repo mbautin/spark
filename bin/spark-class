@@ -113,24 +113,6 @@ if [ ! -f "$FWDIR/RELEASE" ]; then
     echo "Please remove all but one jar."
     exit 1
   fi
-  if [ "$num_jars" -gt "1" ]; then
-    echo "Found multiple Spark assembly jars in $FWDIR/assembly/target/scala-$SCALA_VERSION:" >&2
-    echo "$jars_list"
-    echo "Please remove all but one jar."
-    exit 1
-  fi
-fi
-
-TOOLS_DIR="$FWDIR"/tools
-SPARK_TOOLS_JAR=""
-if [ -e "$TOOLS_DIR"/target/scala-$SCALA_VERSION/*assembly*[0-9Tg].jar ]; then
-  # Use the JAR from the SBT build
-  export SPARK_TOOLS_JAR=`ls "$TOOLS_DIR"/target/scala-$SCALA_VERSION/*assembly*[0-9Tg].jar`
-fi
-if [ -e "$TOOLS_DIR"/target/spark-tools*[0-9Tg].jar ]; then
-  # Use the JAR from the Maven build
-  # TODO: this also needs to become an assembly!
-  export SPARK_TOOLS_JAR=`ls "$TOOLS_DIR"/target/spark-tools*[0-9Tg].jar`
 fi
 
 TOOLS_DIR="$FWDIR"/tools

@@ -87,6 +87,7 @@
   <modules>
     <module>core</module>
     <module>bagel</module>
+    <module>graphx</module>
     <module>mllib</module>
     <module>tools</module>
     <module>streaming</module>
@@ -125,7 +126,7 @@
   </properties>
 
   <repositories>
-    <repository> 
+    <repository>
       <id>maven-repo</id> <!-- This should be at top, it makes maven try the central repo first and then others and hence faster dep resolution -->
       <name>Maven Repository</name>
       <url>http://repo.maven.apache.org/maven2</url>
@@ -230,7 +231,7 @@
       </dependency>
       <!-- In theory we need not directly depend on protobuf since Spark does not directly
            use it. However, when building with Hadoop/YARN 2.2 Maven doesn't correctly bump
-           the protobuf version up from the one Mesos gives. For now we include this variable 
+           the protobuf version up from the one Mesos gives. For now we include this variable
            to explicitly bump the version when building with YARN. It would be nice to figure
            out why Maven can't resolve this correctly (like SBT does). -->
       <dependency>
@@ -750,6 +751,14 @@
   </build>
 
   <profiles>
+     <profile>
+      <!-- Without this the release build incorrectly includes the 
+          test-jar dependency and it breaks. -->
+      <id>release</id>
+      <properties>
+        <maven.test.skip>true</maven.test.skip>
+      </properties>
+    </profile>
     <profile>
       <id>yarn-alpha</id>
       <properties>
@@ -776,16 +785,6 @@
         <module>yarn</module>
       </modules>
 
-    </profile>
-
-    <profile>
-      <id>repl-bin</id>
-      <activation>
-        <activeByDefault>false</activeByDefault>
-      </activation>
-      <modules>
-        <module>repl-bin</module>
-      </modules>
     </profile>
   </profiles>
 </project>

@@ -15,13 +15,14 @@
  * limitations under the License.
  */
 
-package org.apache.spark.util
+package org.apache.spark.streaming.util
 
 import scala.annotation.tailrec
 
 import java.io.OutputStream
 import java.util.concurrent.TimeUnit._
 
+private[streaming]
 class RateLimitedOutputStream(out: OutputStream, bytesPerSec: Int) extends OutputStream {
   val SYNC_INTERVAL = NANOSECONDS.convert(10, SECONDS)
   val CHUNK_SIZE = 8192

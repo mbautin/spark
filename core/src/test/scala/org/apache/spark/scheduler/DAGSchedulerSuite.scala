@@ -401,40 +401,6 @@ class DAGSchedulerSuite extends FunSuite with BeforeAndAfter with LocalSparkCont
     assertDataStructuresEmpty
   }
 
-  // test("oneGoodJob") {
-  //   try {
-  //     val rdd = new ParallelCollectionRDD(sc, 1.to(100).toSeq, 5, Map.empty)
-  //     val func = (tc: TaskContext, iter: Iterator[Int]) => 1
-  //     val callSite = Utils.getSparkCallSite
-
-  //     scheduler.runJob(rdd, func, 0 until rdd.partitions.size, callSite, false, {(_: Int, _: Int) => {}})
-  //     assertDagSchedulerEmpty(scheduler)
-  //   } finally {
-  //     scheduler.stop()
-  //     sc.stop()
-  //     // pause to let scheduler stop (separate thread)
-  //     Thread.sleep(10)
-  //   }
-  // }
-
-  // test("manyGoodJobs") {
-  //   try {
-  //     val rdd = new ParallelCollectionRDD(sc, 1.to(100).toSeq, 5, Map.empty)
-  //     val func = (tc: TaskContext, iter: Iterator[Int]) => 1
-  //     val callSite = Utils.getSparkCallSite
-
-  //     1.to(100).foreach( v => {
-  //       scheduler.runJob(rdd, func, 0 until rdd.partitions.size, callSite, false, {(_: Int, _: Int) => {}})
-  //     })
-  //     assertDagSchedulerEmpty(scheduler)
-  //   } finally {
-  //     scheduler.stop()
-  //     sc.stop()
-  //     // pause to let scheduler stop (separate thread)
-  //     Thread.sleep(10)
-  //   }
-  // }
-
   /**
    * Assert that the supplied TaskSet has exactly the given hosts as its preferred locations.
    * Note that this checks only the host and not the executor ID.
@@ -467,4 +433,3 @@ class DAGSchedulerSuite extends FunSuite with BeforeAndAfter with LocalSparkCont
     assert(scheduler.waiting.isEmpty)
   }
 }
-

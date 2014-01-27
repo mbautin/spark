@@ -15,18 +15,11 @@
  * limitations under the License.
  */
 
-package org.apache.spark.api.java.function
-
-import scala.runtime.AbstractFunction4
+package org.apache.spark
 
 /**
- * Subclass of Function4 for ease of calling from Java. The main thing it does is re-expose the
- * apply() method as call() and declare that it can throw Exception (since AbstractFunction3.apply
- * isn't marked to allow that).
+ * Package for broadcast variables. See [[broadcast.Broadcast]] for details.
  */
-private[spark] abstract class WrappedFunction4[T1, T2, T3, T4, R] extends AbstractFunction4[T1, T2, T3, T4, R] {
-  @throws(classOf[Exception])
-  def call(t1: T1, t2: T2, t3: T3, t4: T4): R
-
-  final def apply(t1: T1, t2: T2, t3: T3, t4: T4): R = call(t1, t2, t3, t4)
+package object broadcast {
+  // For package docs only
 }
