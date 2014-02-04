@@ -972,15 +972,5 @@
         </dependencies>
       </dependencyManagement>
     </profile>
-
-    <profile>
-      <id>repl-bin</id>
-      <activation>
-        <activeByDefault>false</activeByDefault>
-      </activation>
-      <modules>
-        <module>repl-bin</module>
-      </modules>
-    </profile>
   </profiles>
 </project>
