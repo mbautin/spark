@@ -39,4 +39,3 @@ detect these libraries automatically.
 
 To use MLlib in Python, you will need [NumPy](http://www.numpy.org) version 1.7 or newer
 and Python 2.7.
-

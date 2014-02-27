@@ -33,7 +33,7 @@ class JobLoggerSuite extends FunSuite with LocalSparkContext with ShouldMatchers
       def createLogWriterTest(jobID: Int) = createLogWriter(jobID)
       def closeLogWriterTest(jobID: Int) = closeLogWriter(jobID)
       def getRddNameTest(rdd: RDD[_]) = getRddName(rdd)
-      def buildJobDepTest(jobID: Int, stage: Stage) = buildJobDep(jobID, stage) 
+      def buildJobDepTest(jobID: Int, stage: Stage) = buildJobDep(jobID, stage)
     }
     type MyRDD = RDD[(Int, Int)]
     def makeRdd(numPartitions: Int, dependencies: List[Dependency[_]]): MyRDD = {
@@ -71,12 +71,12 @@ class JobLoggerSuite extends FunSuite with LocalSparkContext with ShouldMatchers
     joblogger.getJobIDToStages.size should be (0)
     joblogger.getJobIDtoPrintWriter.size should be (0)
   }
-  
+
   test("inner variables") {
     sc = new SparkContext("local[4]", "joblogger")
     val joblogger = new JobLogger {
-      override protected def closeLogWriter(jobID: Int) = 
-        getJobIDtoPrintWriter.get(jobID).foreach { fileWriter => 
+      override protected def closeLogWriter(jobID: Int) =
+        getJobIDtoPrintWriter.get(jobID).foreach { fileWriter =>
           fileWriter.close()
         }
     }
@@ -86,8 +86,8 @@ class JobLoggerSuite extends FunSuite with LocalSparkContext with ShouldMatchers
 
     assert(sc.dagScheduler.listenerBus.waitUntilEmpty(WAIT_TIMEOUT_MILLIS))
 
-    val user = System.getProperty("user.name",  SparkContext.SPARK_UNKNOWN_USER)
-    
+    val user = System.getProperty("user.name", SparkContext.SPARK_UNKNOWN_USER)
+
     joblogger.getLogDir should be ("/tmp/spark-%s".format(user))
     joblogger.getJobIDtoPrintWriter.size should be (1)
     joblogger.getStageIDToJobID.size should be (2)
@@ -95,13 +95,13 @@ class JobLoggerSuite extends FunSuite with LocalSparkContext with ShouldMatchers
     joblogger.getStageIDToJobID.get(1) should be (Some(0))
     joblogger.getJobIDToStages.size should be (1)
   }
-  
-  
+
+
   test("interface functions") {
     sc = new SparkContext("local[4]", "joblogger")
     val joblogger = new JobLogger {
       var onTaskEndCount = 0
-      var onJobEndCount = 0 
+      var onJobEndCount = 0
       var onJobStartCount = 0
       var onStageCompletedCount = 0
       var onStageSubmittedCount = 0

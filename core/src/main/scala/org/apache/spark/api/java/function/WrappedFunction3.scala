@@ -31,4 +31,3 @@ private[spark] abstract class WrappedFunction3[T1, T2, T3, R]
 
   final def apply(t1: T1, t2: T2, t3: T3): R = call(t1, t2, t3)
 }
-
