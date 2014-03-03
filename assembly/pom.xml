@@ -28,7 +28,7 @@
   <groupId>org.apache.spark</groupId>
   <artifactId>spark-assembly_2.10</artifactId>
   <name>Spark Project Assembly</name>
-  <url>http://spark.incubator.apache.org/</url>
+  <url>http://spark.apache.org/</url>
 
   <properties>
     <spark.jar>${project.build.directory}/scala-${scala.binary.version}/${project.artifactId}-${project.version}-hadoop${hadoop.version}.jar</spark.jar>
