@@ -24,6 +24,7 @@ import java.util.{TimerTask, Timer}
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable.HashMap
 import scala.collection.mutable.HashSet
+import scala.util.Random
 
 import org.apache.spark._
 import org.apache.spark.TaskState.TaskState
@@ -217,9 +218,11 @@ private[spark] class ClusterScheduler(val sc: SparkContext)
       }
     }
 
-    // Build a list of tasks to assign to each worker
-    val tasks = offers.map(o => new ArrayBuffer[TaskDescription](o.cores))
-    val availableCpus = offers.map(o => o.cores).toArray
+    // Randomly shuffle offers to avoid always placing tasks on the same set of workers.
+    val shuffledOffers = Random.shuffle(offers)
+    // Build a list of tasks to assign to each worker.
+    val tasks = shuffledOffers.map(o => new ArrayBuffer[TaskDescription](o.cores))
+    val availableCpus = shuffledOffers.map(o => o.cores).toArray
     val sortedTaskSets = rootPool.getSortedTaskSetQueue()
     for (taskSet <- sortedTaskSets) {
       logDebug("parentName: %s, name: %s, runningTasks: %s".format(
@@ -232,9 +235,9 @@ private[spark] class ClusterScheduler(val sc: SparkContext)
     for (taskSet <- sortedTaskSets; maxLocality <- TaskLocality.values) {
       do {
         launchedTask = false
-        for (i <- 0 until offers.size) {
-          val execId = offers(i).executorId
-          val host = offers(i).host
+        for (i <- 0 until shuffledOffers.size) {
+          val execId = shuffledOffers(i).executorId
+          val host = shuffledOffers(i).host
           for (task <- taskSet.resourceOffer(execId, host, availableCpus(i), maxLocality)) {
             tasks(i) += task
             val tid = task.taskId
