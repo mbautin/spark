@@ -151,12 +151,6 @@
     <repository>
       <id>cloudera-repo</id>
       <name>Cloudera Repository</name>
-      <releases>
-        <enabled>true</enabled>
-      </releases>
-      <snapshots>
-        <enabled>false</enabled>
-      </snapshots>
       <url>https://repository.cloudera.com/artifactory/cloudera-repos</url>
     </repository>
   </repositories>
@@ -767,14 +761,6 @@
   </build>
 
   <profiles>
-     <profile>
-      <!-- Without this the release build incorrectly includes the 
-          test-jar dependency and it breaks. -->
-      <id>release</id>
-      <properties>
-        <maven.test.skip>true</maven.test.skip>
-      </properties>
-    </profile>
     <profile>
       <id>yarn-alpha</id>
       <properties>

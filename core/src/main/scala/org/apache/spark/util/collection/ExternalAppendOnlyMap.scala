@@ -189,7 +189,6 @@ private[spark] class ExternalAppendOnlyMap[K, V, C](
     } finally {
       // Partial failures cannot be tolerated; do not revert partial writes
       writer.close()
-      _diskBytesSpilled += writer.bytesWritten
     }
 
     currentMap = new SizeTrackingAppendOnlyMap[K, C]
