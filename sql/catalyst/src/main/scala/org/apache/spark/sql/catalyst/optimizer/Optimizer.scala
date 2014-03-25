@@ -27,28 +27,15 @@ import org.apache.spark.sql.catalyst.types._
 
 object Optimizer extends RuleExecutor[LogicalPlan] {
   val batches =
-    Batch("Subqueries", Once,
-      EliminateSubqueries) ::
     Batch("ConstantFolding", Once,
       ConstantFolding,
       BooleanSimplification,
+      SimplifyFilters,
       SimplifyCasts) ::
     Batch("Filter Pushdown", Once,
-      EliminateSubqueries,
       CombineFilters,
       PushPredicateThroughProject,
       PushPredicateThroughInnerJoin) :: Nil
-}
-
-/**
- * Removes [[catalyst.plans.logical.Subquery Subquery]] operators from the plan.  Subqueries are
- * only required to provide scoping information for attributes and can be removed once analysis is
- * complete.
- */
-object EliminateSubqueries extends Rule[LogicalPlan] {
-  def apply(plan: LogicalPlan): LogicalPlan = plan transform {
-    case Subquery(_, child) => child
-  }
 }
 
 /**
@@ -101,6 +88,22 @@ object BooleanSimplification extends Rule[LogicalPlan] {
 object CombineFilters extends Rule[LogicalPlan] {
   def apply(plan: LogicalPlan): LogicalPlan = plan transform {
     case ff @ Filter(fc, nf @ Filter(nc, grandChild)) => Filter(And(nc, fc), grandChild)
+  }
+}
+
+/**
+ * Removes filters that can be evaluated trivially.  This is done either by eliding the filter for
+ * cases where it will always evaluate to `true`, or substituting a dummy empty relation when the
+ * filter will always evaluate to `false`.
+ */
+object SimplifyFilters extends Rule[LogicalPlan] {
+  def apply(plan: LogicalPlan): LogicalPlan = plan transform {
+    case Filter(Literal(true, BooleanType), child) =>
+      child
+    case Filter(Literal(null, _), child) =>
+      LocalRelation(child.output)
+    case Filter(Literal(false, BooleanType), child) =>
+      LocalRelation(child.output)
   }
 }
 
