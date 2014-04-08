@@ -32,7 +32,7 @@ import org.apache.spark.executor.TaskMetrics
 import org.apache.spark.partial.{ApproximateActionListener, ApproximateEvaluator, PartialResult}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.{BlockId, BlockManager, BlockManagerMaster, RDDBlockId}
-import org.apache.spark.util.{MetadataCleaner, MetadataCleanerType, TimeStampedHashMap, Utils}
+import org.apache.spark.util.Utils
 
 /**
  * The high-level scheduling layer that implements stage-oriented scheduling. It computes a DAG of
@@ -80,13 +80,13 @@ class DAGScheduler(
   private[scheduler] def numTotalJobs: Int = nextJobId.get()
   private val nextStageId = new AtomicInteger(0)
 
-  private[scheduler] val jobIdToStageIds = new TimeStampedHashMap[Int, HashSet[Int]]
-  private[scheduler] val stageIdToJobIds = new TimeStampedHashMap[Int, HashSet[Int]]
-  private[scheduler] val stageIdToStage = new TimeStampedHashMap[Int, Stage]
-  private[scheduler] val shuffleToMapStage = new TimeStampedHashMap[Int, Stage]
+  private[scheduler] val jobIdToStageIds = new HashMap[Int, HashSet[Int]]
+  private[scheduler] val stageIdToJobIds = new HashMap[Int, HashSet[Int]]
+  private[scheduler] val stageIdToStage = new HashMap[Int, Stage]
+  private[scheduler] val shuffleToMapStage = new HashMap[Int, Stage]
   private[scheduler] val jobIdToActiveJob = new HashMap[Int, ActiveJob]
   private[scheduler] val resultStageToJob = new HashMap[Stage, ActiveJob]
-  private[spark] val stageToInfos = new TimeStampedHashMap[Stage, StageInfo]
+  private[scheduler] val stageToInfos = new HashMap[Stage, StageInfo]
 
   // Stages we need to run whose parents aren't done
   private[scheduler] val waitingStages = new HashSet[Stage]
@@ -98,7 +98,7 @@ class DAGScheduler(
   private[scheduler] val failedStages = new HashSet[Stage]
 
   // Missing tasks from each stage
-  private[scheduler] val pendingTasks = new TimeStampedHashMap[Stage, HashSet[Task[_]]]
+  private[scheduler] val pendingTasks = new HashMap[Stage, HashSet[Task[_]]]
 
   private[scheduler] val activeJobs = new HashSet[ActiveJob]
 
@@ -112,9 +112,6 @@ class DAGScheduler(
   // TODO: Garbage collect information about failure epochs when we know there are no more
   //       stray messages to detect.
   private val failedEpoch = new HashMap[String, Long]
-
-  private val metadataCleaner =
-    new MetadataCleaner(MetadataCleanerType.DAG_SCHEDULER, this.cleanup, env.conf)
 
   taskScheduler.setDAGScheduler(this)
 
@@ -258,7 +255,7 @@ class DAGScheduler(
     : Stage =
   {
     val stage = newStage(rdd, numTasks, Some(shuffleDep), jobId, callSite)
-    if (mapOutputTracker.has(shuffleDep.shuffleId)) {
+    if (mapOutputTracker.containsShuffle(shuffleDep.shuffleId)) {
       val serLocs = mapOutputTracker.getSerializedMapOutputStatuses(shuffleDep.shuffleId)
       val locs = MapOutputTracker.deserializeMapStatuses(serLocs)
       for (i <- 0 until locs.size) {
@@ -389,6 +386,9 @@ class DAGScheduler(
               // data structures based on StageId
               stageIdToStage -= stageId
               stageIdToJobIds -= stageId
+
+              ShuffleMapTask.removeStage(stageId)
+              ResultTask.removeStage(stageId)
 
               logDebug("After removal of stage %d, remaining stages = %d"
                 .format(stageId, stageIdToStage.size))
@@ -982,15 +982,7 @@ class DAGScheduler(
     if (!jobIdToStageIds.contains(jobId)) {
       logDebug("Trying to cancel unregistered job " + jobId)
     } else {
-      val independentStages = removeJobAndIndependentStages(jobId)
-      independentStages.foreach(taskScheduler.cancelTasks)
-      val error = new SparkException("Job %d cancelled".format(jobId))
-      val job = jobIdToActiveJob(jobId)
-      job.listener.jobFailed(error)
-      jobIdToStageIds -= jobId
-      activeJobs -= job
-      jobIdToActiveJob -= jobId
-      listenerBus.post(SparkListenerJobEnd(job.jobId, JobFailed(error, job.finalStage.id)))
+      failJobAndIndependentStages(jobIdToActiveJob(jobId), s"Job $jobId cancelled")
     }
   }
 
@@ -1007,17 +999,37 @@ class DAGScheduler(
     stageToInfos(failedStage).completionTime = Some(System.currentTimeMillis())
     for (resultStage <- dependentStages) {
       val job = resultStageToJob(resultStage)
-      val error = new SparkException("Job aborted: " + reason)
-      job.listener.jobFailed(error)
-      jobIdToStageIdsRemove(job.jobId)
-      jobIdToActiveJob -= resultStage.jobId
-      activeJobs -= job
-      resultStageToJob -= resultStage
-      listenerBus.post(SparkListenerJobEnd(job.jobId, JobFailed(error, failedStage.id)))
+      failJobAndIndependentStages(job, s"Job aborted due to stage failure: $reason")
     }
     if (dependentStages.isEmpty) {
       logInfo("Ignoring failure of " + failedStage + " because all jobs depending on it are done")
     }
+  }
+
+  /**
+   * Fails a job and all stages that are only used by that job, and cleans up relevant state.
+   */
+  private def failJobAndIndependentStages(job: ActiveJob, failureReason: String) {
+    val error = new SparkException(failureReason)
+    job.listener.jobFailed(error)
+
+    // Cancel all tasks in independent stages.
+    val independentStages = removeJobAndIndependentStages(job.jobId)
+    independentStages.foreach(taskScheduler.cancelTasks)
+
+    // Clean up remaining state we store for the job.
+    jobIdToActiveJob -= job.jobId
+    activeJobs -= job
+    jobIdToStageIds -= job.jobId
+    val resultStagesForJob = resultStageToJob.keySet.filter(
+      stage => resultStageToJob(stage).jobId == job.jobId)
+    if (resultStagesForJob.size != 1) {
+      logWarning(
+        s"${resultStagesForJob.size} result stages for job ${job.jobId} (expect exactly 1)")
+    }
+    resultStageToJob --= resultStagesForJob
+
+    listenerBus.post(SparkListenerJobEnd(job.jobId, JobFailed(error, job.finalStage.id)))
   }
 
   /**
@@ -1084,26 +1096,10 @@ class DAGScheduler(
     Nil
   }
 
-  private def cleanup(cleanupTime: Long) {
-    Map(
-      "stageIdToStage" -> stageIdToStage,
-      "shuffleToMapStage" -> shuffleToMapStage,
-      "pendingTasks" -> pendingTasks,
-      "stageToInfos" -> stageToInfos,
-      "jobIdToStageIds" -> jobIdToStageIds,
-      "stageIdToJobIds" -> stageIdToJobIds).
-      foreach { case (s, t) =>
-        val sizeBefore = t.size
-        t.clearOldValues(cleanupTime)
-        logInfo("%s %d --> %d".format(s, sizeBefore, t.size))
-      }
-  }
-
   def stop() {
     if (eventProcessActor != null) {
       eventProcessActor ! StopDAGScheduler
     }
-    metadataCleaner.cancel()
     taskScheduler.stop()
   }
 }

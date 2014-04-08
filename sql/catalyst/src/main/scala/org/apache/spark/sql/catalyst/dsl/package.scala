@@ -70,7 +70,7 @@ package object dsl {
     def > (other: Expression) = GreaterThan(expr, other)
     def >= (other: Expression) = GreaterThanOrEqual(expr, other)
     def === (other: Expression) = Equals(expr, other)
-    def != (other: Expression) = Not(Equals(expr, other))
+    def !== (other: Expression) = Not(Equals(expr, other))
 
     def like(other: Expression) = Like(expr, other)
     def rlike(other: Expression) = RLike(expr, other)
@@ -104,7 +104,7 @@ package object dsl {
     implicit class DslSymbol(sym: Symbol) extends ImplicitAttribute { def s = sym.name }
     // TODO more implicit class for literal?
     implicit class DslString(val s: String) extends ImplicitOperators {
-      def expr: Expression = Literal(s)
+      override def expr: Expression = Literal(s)
       def attr = analysis.UnresolvedAttribute(s)
     }
 
