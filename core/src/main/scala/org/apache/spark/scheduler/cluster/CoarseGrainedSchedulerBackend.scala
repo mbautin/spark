@@ -100,8 +100,8 @@ class CoarseGrainedSchedulerBackend(scheduler: ClusterScheduler, actorSystem: Ac
       case ReviveOffers =>
         makeOffers()
 
-      case KillTask(taskId, executorId) =>
-        executorActor(executorId) ! KillTask(taskId, executorId)
+      case KillTask(taskId, executorId, interruptThread) =>
+        executorActor(executorId) ! KillTask(taskId, executorId, interruptThread)
 
       case StopDriver =>
         sender ! true
@@ -215,8 +215,8 @@ class CoarseGrainedSchedulerBackend(scheduler: ClusterScheduler, actorSystem: Ac
     driverActor ! ReviveOffers
   }
 
-  override def killTask(taskId: Long, executorId: String) {
-    driverActor ! KillTask(taskId, executorId)
+  override def killTask(taskId: Long, executorId: String, interruptThread: Boolean) {
+    driverActor ! KillTask(taskId, executorId, interruptThread)
   }
 
   override def defaultParallelism() = Option(System.getProperty("spark.default.parallelism"))
