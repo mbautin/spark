@@ -50,7 +50,7 @@ private[spark] class CacheManager(blockManager: BlockManager) extends Logging {
                 loading.wait()
               } catch {
                 case e: Exception =>
-                  logWarning(s"Got an exception while waiting for another thread to load $key", e)
+                  logWarning("Got an exception while waiting for another thread to load " + key, e)
               }
             }
             logInfo("Finished waiting for %s".format(key))
