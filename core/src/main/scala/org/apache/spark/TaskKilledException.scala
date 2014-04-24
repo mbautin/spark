@@ -15,25 +15,9 @@
  * limitations under the License.
  */
 
-package org.apache.spark.scheduler
-
-import java.util.Properties
+package org.apache.spark
 
 /**
- * A set of tasks submitted together to the low-level TaskScheduler, usually representing
- * missing partitions of a particular stage.
+ * Exception for a task getting killed.
  */
-private[spark] class TaskSet(
-    val tasks: Array[Task[_]],
-    val stageId: Int,
-    val attempt: Int,
-    val priority: Int,
-    val properties: Properties) {
-    val id: String = stageId + "." + attempt
-
-  def kill(interruptThread: Boolean) {
-    tasks.foreach(_.kill(interruptThread))
-  }
-
-  override def toString: String = "TaskSet " + id
-}
+private[spark] class TaskKilledException extends RuntimeException
