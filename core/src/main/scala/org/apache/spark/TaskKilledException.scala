@@ -15,24 +15,9 @@
  * limitations under the License.
  */
 
-package org.apache.spark.scheduler.cluster
-
-import org.apache.spark.SparkContext
+package org.apache.spark
 
 /**
- * A backend interface for cluster scheduling systems that allows plugging in different ones under
- * ClusterScheduler. We assume a Mesos-like model where the application gets resource offers as
- * machines become available and can launch tasks on them.
+ * Exception for a task getting killed.
  */
-private[spark] trait SchedulerBackend {
-  def start(): Unit
-  def stop(): Unit
-  def reviveOffers(): Unit
-  def defaultParallelism(): Int
-
-  def killTask(taskId: Long, executorId: String, interruptThread: Boolean): Unit =
-    throw new UnsupportedOperationException
-
-  // Memory used by each executor (in megabytes)
-  protected val executorMemory: Int = SparkContext.executorMemoryRequested
-}
+private[spark] class TaskKilledException extends RuntimeException

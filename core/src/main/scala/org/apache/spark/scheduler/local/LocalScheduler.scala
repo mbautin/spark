@@ -44,7 +44,7 @@ private[local]
 case class LocalStatusUpdate(taskId: Long, state: TaskState, serializedData: ByteBuffer)
 
 private[local]
-case class KillTask(taskId: Long)
+case class KillTask(taskId: Long, interruptThread: Boolean)
 
 private[spark]
 class LocalActor(localScheduler: LocalScheduler, private var freeCores: Int)
@@ -62,8 +62,8 @@ class LocalActor(localScheduler: LocalScheduler, private var freeCores: Int)
         launchTask(localScheduler.resourceOffer(freeCores))
       }
 
-    case KillTask(taskId) =>
-      executor.killTask(taskId)
+    case KillTask(taskId, interruptThread) =>
+      executor.killTask(taskId, interruptThread)
   }
 
   private def launchTask(tasks: Seq[TaskDescription]) {
@@ -128,7 +128,7 @@ private[spark] class LocalScheduler(threads: Int, val maxFailures: Int, val sc: 
     }
   }
 
-  override def cancelTasks(stageId: Int): Unit = synchronized {
+  override def cancelTasks(stageId: Int, interruptThread: Boolean): Unit = synchronized {
     logInfo("Cancelling stage " + stageId)
     logInfo("Cancelling stage " + activeTaskSets.map(_._2.stageId))
     activeTaskSets.find(_._2.stageId == stageId).foreach { case (_, tsm) =>
@@ -141,7 +141,7 @@ private[spark] class LocalScheduler(threads: Int, val maxFailures: Int, val sc: 
       val taskIds = taskSetTaskIds(tsm.taskSet.id)
       if (taskIds.size > 0) {
         taskIds.foreach { tid =>
-          localActor ! KillTask(tid)
+          localActor ! KillTask(tid, interruptThread)
         }
       }
       logInfo("Stage %d was cancelled".format(stageId))

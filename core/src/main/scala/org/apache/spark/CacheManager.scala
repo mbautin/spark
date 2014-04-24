@@ -46,7 +46,12 @@ private[spark] class CacheManager(blockManager: BlockManager) extends Logging {
           if (loading.contains(key)) {
             logInfo("Another thread is loading %s, waiting for it to finish...".format(key))
             while (loading.contains(key)) {
-              try {loading.wait()} catch {case _ : Throwable =>}
+              try {
+                loading.wait()
+              } catch {
+                case e: Exception =>
+                  logWarning("Got an exception while waiting for another thread to load " + key, e)
+              }
             }
             logInfo("Finished waiting for %s".format(key))
             // See whether someone else has successfully loaded it. The main way this would fail
@@ -74,7 +79,10 @@ private[spark] class CacheManager(blockManager: BlockManager) extends Logging {
           val elements = new ArrayBuffer[Any]
           elements ++= computedValues
           blockManager.put(key, elements, storageLevel, tellMaster = true)
-          return elements.iterator.asInstanceOf[Iterator[T]]
+          val returnValue: Iterator[T] = elements.iterator.asInstanceOf[Iterator[T]]
+
+          new InterruptibleIterator(context, returnValue)
+
         } finally {
           loading.synchronized {
             loading.remove(key)

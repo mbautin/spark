@@ -962,10 +962,13 @@ class DAGScheduler(
     if (!jobIdToStageIds.contains(jobId)) {
       logDebug("Trying to cancel unregistered job " + jobId)
     } else {
-      val independentStages = removeJobAndIndependentStages(jobId)
-      independentStages.foreach { taskSched.cancelTasks }
-      val error = new SparkException("Job %d cancelled".format(jobId))
       val job = idToActiveJob(jobId)
+      val independentStages = removeJobAndIndependentStages(jobId)
+      val shouldInterruptThread =
+        if (job.properties == null) false
+        else job.properties.getProperty(SparkContext.SPARK_JOB_INTERRUPT_ON_CANCEL, "false").toBoolean
+      independentStages.foreach { taskSched.cancelTasks(_, shouldInterruptThread) }
+      val error = new SparkException("Job %d cancelled".format(jobId))
       job.listener.jobFailed(error)
       jobIdToStageIds -= jobId
       activeJobs -= job

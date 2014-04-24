@@ -17,7 +17,7 @@
 
 package org.apache.spark.scheduler
 
-import scala.collection.mutable.{Map, HashMap}
+import scala.collection.mutable.{Map, HashMap, HashSet}
 
 import org.scalatest.FunSuite
 import org.scalatest.BeforeAndAfter
@@ -49,6 +49,10 @@ class DAGSchedulerSuite extends FunSuite with BeforeAndAfter with LocalSparkCont
 
   /** Set of TaskSets the DAGScheduler has requested executed. */
   val taskSets = scala.collection.mutable.Buffer[TaskSet]()
+
+  /** Stages for which the DAGScheduler has called TaskScheduler.cancelTasks(). */
+  val cancelledStages = new HashSet[Int]()
+
   val taskScheduler = new TaskScheduler() {
     override def rootPool: Pool = null
     override def schedulingMode: SchedulingMode = SchedulingMode.NONE
@@ -59,7 +63,9 @@ class DAGSchedulerSuite extends FunSuite with BeforeAndAfter with LocalSparkCont
       taskSet.tasks.foreach(_.epoch = mapOutputTracker.getEpoch)
       taskSets += taskSet
     }
-    override def cancelTasks(stageId: Int) {}
+    override def cancelTasks(stageId: Int, interruptThread: Boolean) {
+      cancelledStages += stageId
+    }
     override def setDAGScheduler(dagScheduler: DAGScheduler) = {}
     override def defaultParallelism() = 2
   }
@@ -97,6 +103,7 @@ class DAGSchedulerSuite extends FunSuite with BeforeAndAfter with LocalSparkCont
   before {
     sc = new SparkContext("local", "DAGSchedulerSuite")
     taskSets.clear()
+    cancelledStages.clear()
     cacheLocations.clear()
     results.clear()
     mapOutputTracker = new MapOutputTracker()
