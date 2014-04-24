@@ -18,9 +18,16 @@
 package org.apache.spark.scheduler
 
 import scala.Tuple2
-import scala.collection.mutable.{HashMap, Map}
 
 import org.apache.spark._
+import scala.collection.mutable.{Map, HashMap, HashSet}
+import org.apache.spark.LocalSparkContext
+import org.apache.spark.MapOutputTracker
+import org.apache.spark.SparkContext
+import org.apache.spark.Partition
+import org.apache.spark.TaskContext
+import org.apache.spark.{Dependency, ShuffleDependency, OneToOneDependency}
+import org.apache.spark.{FetchFailed, Success, TaskEndReason}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.scheduler.SchedulingMode.SchedulingMode
 import org.apache.spark.storage.{BlockId, BlockManagerId, BlockManagerMaster}
@@ -42,6 +49,10 @@ class DAGSchedulerSuite extends FunSuite with BeforeAndAfter with LocalSparkCont
   val conf = new SparkConf
   /** Set of TaskSets the DAGScheduler has requested executed. */
   val taskSets = scala.collection.mutable.Buffer[TaskSet]()
+
+  /** Stages for which the DAGScheduler has called TaskScheduler.cancelTasks(). */
+  val cancelledStages = new HashSet[Int]()
+
   val taskScheduler = new TaskScheduler() {
     override def rootPool: Pool = null
     override def schedulingMode: SchedulingMode = SchedulingMode.NONE
@@ -92,6 +103,7 @@ class DAGSchedulerSuite extends FunSuite with BeforeAndAfter with LocalSparkCont
   before {
     sc = new SparkContext("local", "DAGSchedulerSuite")
     taskSets.clear()
+    cancelledStages.clear()
     cacheLocations.clear()
     results.clear()
     mapOutputTracker = new MapOutputTrackerMaster(conf)
