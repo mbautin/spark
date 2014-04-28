@@ -553,8 +553,7 @@ private[spark] object Utils extends Logging {
   }
 
   /**
-   * Return the string to tell how long has passed in seconds. The passing parameter should be in
-   * millisecond.
+   * Return the string to tell how long has passed in milliseconds.
    */
   def getUsedTimeMs(startTimeMs: Long): String = {
     " " + (System.currentTimeMillis - startTimeMs) + " ms"
@@ -1055,5 +1054,12 @@ private[spark] object Utils extends Logging {
    */
   def getHadoopFileSystem(path: String): FileSystem = {
     getHadoopFileSystem(new URI(path))
+  }
+
+  /**
+   * Indicates whether Spark is currently running unit tests.
+   */
+  private[spark] def isTesting = {
+    sys.env.contains("SPARK_TESTING") || sys.props.contains("spark.testing")
   }
 }
