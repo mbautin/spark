@@ -37,13 +37,13 @@ import org.apache.spark.streaming.{Time, Duration}
  * Import `org.apache.spark.streaming.StreamingContext._` at the top of your program to use
  * these functions.
  */
-class PairDStreamFunctions[K: ClassTag, V: ClassTag](self: DStream[(K,V)])
-  extends Serializable {
-
+class PairDStreamFunctions[K, V](self: DStream[(K,V)])
+    (implicit kt: ClassTag[K], vt: ClassTag[V], ord: Ordering[K])
+  extends Serializable
+{
   private[streaming] def ssc = self.ssc
 
-  private[streaming] def defaultPartitioner(numPartitions: Int = self.ssc.sc.defaultParallelism)
-  = {
+  private[streaming] def defaultPartitioner(numPartitions: Int = self.ssc.sc.defaultParallelism) = {
     new HashPartitioner(numPartitions)
   }
 
@@ -569,6 +569,42 @@ class PairDStreamFunctions[K: ClassTag, V: ClassTag](self: DStream[(K,V)])
   }
 
   /**
+   * Return a new DStream by applying 'full outer join' between RDDs of `this` DStream and
+   * `other` DStream. Hash partitioning is used to generate the RDDs with Spark's default
+   * number of partitions.
+   */
+  def fullOuterJoin[W: ClassTag](other: DStream[(K, W)]): DStream[(K, (Option[V], Option[W]))] = {
+    fullOuterJoin[W](other, defaultPartitioner())
+  }
+
+  /**
+   * Return a new DStream by applying 'full outer join' between RDDs of `this` DStream and
+   * `other` DStream. Hash partitioning is used to generate the RDDs with `numPartitions`
+   * partitions.
+   */
+  def fullOuterJoin[W: ClassTag](
+      other: DStream[(K, W)],
+      numPartitions: Int
+    ): DStream[(K, (Option[V], Option[W]))] = {
+    fullOuterJoin[W](other, defaultPartitioner(numPartitions))
+  }
+
+  /**
+   * Return a new DStream by applying 'full outer join' between RDDs of `this` DStream and
+   * `other` DStream. The supplied [[org.apache.spark.Partitioner]] is used to control
+   * the partitioning of each RDD.
+   */
+  def fullOuterJoin[W: ClassTag](
+      other: DStream[(K, W)],
+      partitioner: Partitioner
+    ): DStream[(K, (Option[V], Option[W]))] = {
+    self.transformWith(
+      other,
+      (rdd1: RDD[(K, V)], rdd2: RDD[(K, W)]) => rdd1.fullOuterJoin(rdd2, partitioner)
+    )
+  }
+
+  /**
    * Save each RDD in `this` DStream as a Hadoop file. The file name at each batch interval
    * is generated based on `prefix` and `suffix`: "prefix-TIME_IN_MS.suffix"
    */
@@ -576,7 +612,7 @@ class PairDStreamFunctions[K: ClassTag, V: ClassTag](self: DStream[(K,V)])
       prefix: String,
       suffix: String
     )(implicit fm: ClassTag[F]) {
-    saveAsHadoopFiles(prefix, suffix, getKeyClass, getValueClass,
+    saveAsHadoopFiles(prefix, suffix, keyClass, valueClass,
       fm.runtimeClass.asInstanceOf[Class[F]])
   }
 
@@ -607,7 +643,7 @@ class PairDStreamFunctions[K: ClassTag, V: ClassTag](self: DStream[(K,V)])
       prefix: String,
       suffix: String
     )(implicit fm: ClassTag[F])  {
-    saveAsNewAPIHadoopFiles(prefix, suffix, getKeyClass, getValueClass,
+    saveAsNewAPIHadoopFiles(prefix, suffix, keyClass, valueClass,
       fm.runtimeClass.asInstanceOf[Class[F]])
   }
 
@@ -630,7 +666,7 @@ class PairDStreamFunctions[K: ClassTag, V: ClassTag](self: DStream[(K,V)])
     self.foreachRDD(saveFunc)
   }
 
-  private def getKeyClass() = implicitly[ClassTag[K]].runtimeClass
+  private def keyClass: Class[_] = kt.runtimeClass
 
-  private def getValueClass() = implicitly[ClassTag[V]].runtimeClass
+  private def valueClass: Class[_] = vt.runtimeClass
 }
