@@ -62,6 +62,7 @@ private[spark] class Client(
     var masterAddress: Address = null
     var alreadyDisconnected = false  // To avoid calling listener.disconnected() multiple times
     var alreadyDead = false  // To avoid calling listener.dead() multiple times
+    var registrationRetryTimer: Option[Cancellable] = None
 
     override def preStart() {
       try {
@@ -86,12 +87,12 @@ private[spark] class Client(
       tryRegisterAllMasters()
 
       var retries = 0
-      lazy val retryTimer: Cancellable =
+      registrationRetryTimer = Some {
         context.system.scheduler.schedule(REGISTRATION_TIMEOUT, REGISTRATION_TIMEOUT) {
           Utils.tryOrExit {
             retries += 1
             if (registered) {
-              retryTimer.cancel()
+              registrationRetryTimer.foreach(_.cancel())
             } else if (retries >= REGISTRATION_RETRIES) {
               logError("All masters are unresponsive! Giving up.")
               markDead()
@@ -100,7 +101,7 @@ private[spark] class Client(
             }
           }
         }
-      retryTimer // start timer
+      }
     }
 
     def changeMaster(url: String) {
@@ -177,6 +178,9 @@ private[spark] class Client(
         alreadyDead = true
       }
     }
+
+    override def postStop() {
+      registrationRetryTimer.foreach(_.cancel())
   }
 
   def start() {

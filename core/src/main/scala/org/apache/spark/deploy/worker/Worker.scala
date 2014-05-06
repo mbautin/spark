@@ -85,6 +85,8 @@ private[spark] class Worker(
   val metricsSystem = MetricsSystem.createMetricsSystem("worker")
   val workerSource = new WorkerSource(this)
 
+  var registrationRetryTimer: Option[Cancellable] = None
+
   def coresFree: Int = cores - coresUsed
   def memoryFree: Int = memory - memoryUsed
 
@@ -144,9 +146,8 @@ private[spark] class Worker(
 
   def registerWithMaster() {
     tryRegisterAllMasters()
-
     var retries = 0
-    lazy val retryTimer: Cancellable =
+    registrationRetryTimer = Some {
       context.system.scheduler.schedule(REGISTRATION_TIMEOUT, REGISTRATION_TIMEOUT) {
         Utils.tryOrExit {
           retries += 1
@@ -160,7 +161,7 @@ private[spark] class Worker(
           }
         }
       }
-    retryTimer // start timer
+    }
   }
 
   override def receive = {
@@ -262,6 +263,7 @@ private[spark] class Worker(
   }
 
   override def postStop() {
+    registrationRetryTimer.foreach(_.cancel())
     executors.values.foreach(_.kill())
     webUi.stop()
     metricsSystem.stop()
