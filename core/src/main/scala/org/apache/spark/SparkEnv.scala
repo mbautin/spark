@@ -17,6 +17,8 @@
 
 package org.apache.spark
 
+import java.io.File
+
 import scala.collection.JavaConversions._
 import scala.collection.mutable
 import scala.concurrent.Await
@@ -279,8 +281,7 @@ object SparkEnv extends Logging {
     val jvmInformation = Seq(
       ("Java Version", "%s (%s)".format(Properties.javaVersion, Properties.javaVendor)),
       ("Java Home", Properties.javaHome),
-      ("Scala Version", Properties.versionString),
-      ("Scala Home", Properties.scalaHome)
+      ("Scala Version", Properties.versionString)
     ).sorted
 
     // Spark properties
@@ -304,7 +305,7 @@ object SparkEnv extends Logging {
       k == "java.class.path"
     }.getOrElse(("", ""))
     val classPathEntries = classPathProperty._2
-      .split(conf.get("path.separator", ":"))
+      .split(File.pathSeparator)
       .filterNot(e => e.isEmpty)
       .map(e => (e, "System Classpath"))
     val addedJarsAndFiles = (addedJars ++ addedFiles).map((_, "Added By User"))
