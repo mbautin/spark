@@ -26,6 +26,7 @@ import scala.collection.Map
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.JavaConversions._
 import scala.io.Source
+import scala.util.control.{ControlThrowable, NonFatal}
 
 import com.google.common.io.Files
 import com.google.common.util.concurrent.ThreadFactoryBuilder
@@ -36,7 +37,6 @@ import org.apache.spark.serializer.{DeserializationStream, SerializationStream, 
 import org.apache.spark.deploy.SparkHadoopUtil
 import java.nio.ByteBuffer
 import org.apache.spark.{SparkException, Logging}
-
 
 /**
  * Various utility methods used by Spark.
@@ -822,5 +822,30 @@ private[spark] object Utils extends Logging {
   def getSystemProperties(): Map[String, String] = {
     return System.getProperties().clone()
       .asInstanceOf[java.util.Properties].toMap[String, String]
+  }
+
+  /** 
+   * Executes the given block, printing and re-throwing any uncaught exceptions.
+   * This is particularly useful for wrapping code that runs in a thread, to ensure
+   * that exceptions are printed, and to avoid having to catch Throwable.
+   */
+  def logUncaughtExceptions[T](f: => T): T = {
+    try {
+      f
+    } catch {
+      case t: Throwable =>
+        logError(s"Uncaught exception in thread ${Thread.currentThread().getName}", t)
+        throw t
+    }
+  }
+
+  /** Returns true if the given exception was fatal. See docs for scala.util.control.NonFatal. */
+  def isFatalError(e: Throwable): Boolean = {
+    e match {
+      case NonFatal(_) | _: InterruptedException | _: NotImplementedError | _: ControlThrowable =>
+        false
+      case _ =>
+        true
+    }
   }
 }

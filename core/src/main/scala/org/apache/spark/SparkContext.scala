@@ -1145,6 +1145,7 @@ object SparkContext {
   /** Find the JAR that contains the class of a particular object */
   def jarOfObject(obj: AnyRef): Seq[String] = jarOfClass(obj.getClass)
 
+<<<<<<< HEAD
   /** Get the amount of memory per executor requested through system properties or SPARK_MEM */
   private[spark] val executorMemoryRequested = {
     // TODO: Might need to add some extra memory for the non-heap parts of the JVM
