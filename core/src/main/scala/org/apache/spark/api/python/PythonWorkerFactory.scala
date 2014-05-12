@@ -58,13 +58,11 @@ private[spark] class PythonWorkerFactory(pythonExec: String, envVars: Map[String
       try {
         new Socket(daemonHost, daemonPort)
       } catch {
-        case exc: SocketException => {
+        case exc: SocketException => 
           logWarning("Python daemon unexpectedly quit, attempting to restart")
           stopDaemon()
           startDaemon()
           new Socket(daemonHost, daemonPort)
-        }
-        case e: Throwable => throw e
       }
     }
   }
