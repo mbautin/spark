@@ -4474,7 +4474,6 @@ Release 0.9.1
   Ubuntu <ubuntu@ip-10-109-132-81.ec2.internal>
   2014-01-24 06:15:15 +0000
   Commit: 0f60ef2
->>>>>>> d08e9604fc9958b7c768e91715c8152db2ed6fd0
 
 Release 0.9.0-incubating
 
