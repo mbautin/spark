@@ -31,8 +31,14 @@ import scala.util.control.{ControlThrowable, NonFatal}
 import com.google.common.io.Files
 import com.google.common.util.concurrent.ThreadFactoryBuilder
 
+<<<<<<< HEAD
 import org.apache.hadoop.fs.{Path, FileSystem, FileUtil}
 
+=======
+import org.apache.spark.{Logging, SecurityManager, SparkConf, SparkException}
+import org.apache.spark.deploy.SparkHadoopUtil
+import org.apache.spark.executor.ExecutorUncaughtExceptionHandler
+>>>>>>> 9ff9078... [SPARK-1620] Handle uncaught exceptions in function run by Akka scheduler
 import org.apache.spark.serializer.{DeserializationStream, SerializationStream, SerializerInstance}
 import org.apache.spark.deploy.SparkHadoopUtil
 import java.nio.ByteBuffer
@@ -632,6 +638,18 @@ private[spark] object Utils extends Logging {
       throw new SparkException("Process " + command + " exited with code " + exitCode)
     }
     output.toString
+  }
+
+  /**
+   * Execute a block of code that evaluates to Unit, forwarding any uncaught exceptions to the
+   * default UncaughtExceptionHandler
+   */
+  def tryOrExit(block: => Unit) {
+    try {
+      block
+    } catch {
+      case t: Throwable => ExecutorUncaughtExceptionHandler.uncaughtException(t)
+    }
   }
 
   /**

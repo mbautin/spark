@@ -148,14 +148,16 @@ private[spark] class Worker(
     var retries = 0
     lazy val retryTimer: Cancellable =
       context.system.scheduler.schedule(REGISTRATION_TIMEOUT, REGISTRATION_TIMEOUT) {
-        retries += 1
-        if (registered) {
-          retryTimer.cancel()
-        } else if (retries >= REGISTRATION_RETRIES) {
-          logError("All masters are unresponsive! Giving up.")
-          System.exit(1)
-        } else {
-          tryRegisterAllMasters()
+        Utils.tryOrExit {
+          retries += 1
+          if (registered) {
+            registrationRetryTimer.foreach(_.cancel())
+          } else if (retries >= REGISTRATION_RETRIES) {
+            logError("All masters are unresponsive! Giving up.")
+            System.exit(1)
+          } else {
+            tryRegisterAllMasters()
+          }
         }
       }
     retryTimer // start timer
