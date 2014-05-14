@@ -19,6 +19,7 @@ package org.apache.spark.util
 
 import java.io._
 import java.net.{InetAddress, URL, URI, NetworkInterface, Inet4Address}
+import java.nio.ByteBuffer
 import java.util.{Locale, Random, UUID}
 import java.util.concurrent.{ConcurrentHashMap, Executors, ThreadPoolExecutor}
 
@@ -31,14 +32,11 @@ import scala.reflect.ClassTag
 import com.google.common.io.Files
 import com.google.common.util.concurrent.ThreadFactoryBuilder
 
-import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.fs.{Path, FileSystem, FileUtil}
-import org.apache.hadoop.io._
-
-import org.apache.spark.serializer.{DeserializationStream, SerializationStream, SerializerInstance}
+import org.apache.hadoop.fs.{FileSystem, FileUtil, Path}
+import org.apache.spark.{Logging, SecurityManager, SparkConf, SparkException}
 import org.apache.spark.deploy.SparkHadoopUtil
-import java.nio.ByteBuffer
-import org.apache.spark.{SparkConf, SparkException, Logging}
+import org.apache.spark.executor.ExecutorUncaughtExceptionHandler
+import org.apache.spark.serializer.{DeserializationStream, SerializationStream, SerializerInstance}
 
 
 /**
@@ -619,6 +617,18 @@ private[spark] object Utils extends Logging {
       throw new SparkException("Process " + command + " exited with code " + exitCode)
     }
     output.toString
+  }
+
+  /**
+   * Execute a block of code that evaluates to Unit, forwarding any uncaught exceptions to the
+   * default UncaughtExceptionHandler
+   */
+  def tryOrExit(block: => Unit) {
+    try {
+      block
+    } catch {
+      case t: Throwable => ExecutorUncaughtExceptionHandler.uncaughtException(t)
+    }
   }
 
   /**
