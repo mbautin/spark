@@ -181,6 +181,7 @@ private[spark] class Client(
 
     override def postStop() {
       registrationRetryTimer.foreach(_.cancel())
+    }
   }
 
   def start() {

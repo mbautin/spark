@@ -19,6 +19,7 @@ package org.apache.spark.util
 
 import java.io._
 import java.net.{InetAddress, URL, URI, NetworkInterface, Inet4Address}
+import java.nio.ByteBuffer
 import java.util.{Locale, Random, UUID}
 import java.util.concurrent.{ConcurrentHashMap, Executors, ThreadPoolExecutor}
 
@@ -31,18 +32,12 @@ import scala.util.control.{ControlThrowable, NonFatal}
 import com.google.common.io.Files
 import com.google.common.util.concurrent.ThreadFactoryBuilder
 
-<<<<<<< HEAD
 import org.apache.hadoop.fs.{Path, FileSystem, FileUtil}
 
-=======
-import org.apache.spark.{Logging, SecurityManager, SparkConf, SparkException}
+import org.apache.spark.{SparkException, Logging}
 import org.apache.spark.deploy.SparkHadoopUtil
 import org.apache.spark.executor.ExecutorUncaughtExceptionHandler
->>>>>>> 9ff9078... [SPARK-1620] Handle uncaught exceptions in function run by Akka scheduler
 import org.apache.spark.serializer.{DeserializationStream, SerializationStream, SerializerInstance}
-import org.apache.spark.deploy.SparkHadoopUtil
-import java.nio.ByteBuffer
-import org.apache.spark.{SparkException, Logging}
 
 /**
  * Various utility methods used by Spark.
@@ -852,7 +847,7 @@ private[spark] object Utils extends Logging {
       f
     } catch {
       case t: Throwable =>
-        logError(s"Uncaught exception in thread ${Thread.currentThread().getName}", t)
+        logError("Uncaught exception in thread " + Thread.currentThread().getName, t)
         throw t
     }
   }
@@ -860,7 +855,7 @@ private[spark] object Utils extends Logging {
   /** Returns true if the given exception was fatal. See docs for scala.util.control.NonFatal. */
   def isFatalError(e: Throwable): Boolean = {
     e match {
-      case NonFatal(_) | _: InterruptedException | _: NotImplementedError | _: ControlThrowable =>
+      case NonFatal(_) | _: InterruptedException | _: ControlThrowable =>
         false
       case _ =>
         true
