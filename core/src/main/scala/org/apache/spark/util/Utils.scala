@@ -19,6 +19,7 @@ package org.apache.spark.util
 
 import java.io._
 import java.net.{InetAddress, URL, URI, NetworkInterface, Inet4Address}
+import java.nio.ByteBuffer
 import java.util.{Locale, Random, UUID}
 import java.util.concurrent.{ConcurrentHashMap, Executors, ThreadPoolExecutor}
 
@@ -26,17 +27,17 @@ import scala.collection.Map
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.JavaConversions._
 import scala.io.Source
+import scala.util.control.{ControlThrowable, NonFatal}
 
 import com.google.common.io.Files
 import com.google.common.util.concurrent.ThreadFactoryBuilder
 
 import org.apache.hadoop.fs.{Path, FileSystem, FileUtil}
 
-import org.apache.spark.serializer.{DeserializationStream, SerializationStream, SerializerInstance}
-import org.apache.spark.deploy.SparkHadoopUtil
-import java.nio.ByteBuffer
 import org.apache.spark.{SparkException, Logging}
-
+import org.apache.spark.deploy.SparkHadoopUtil
+import org.apache.spark.executor.ExecutorUncaughtExceptionHandler
+import org.apache.spark.serializer.{DeserializationStream, SerializationStream, SerializerInstance}
 
 /**
  * Various utility methods used by Spark.
@@ -635,6 +636,18 @@ private[spark] object Utils extends Logging {
   }
 
   /**
+   * Execute a block of code that evaluates to Unit, forwarding any uncaught exceptions to the
+   * default UncaughtExceptionHandler
+   */
+  def tryOrExit(block: => Unit) {
+    try {
+      block
+    } catch {
+      case t: Throwable => ExecutorUncaughtExceptionHandler.uncaughtException(t)
+    }
+  }
+
+  /**
    * A regular expression to match classes of the "core" Spark API that we want to skip when
    * finding the call site of a method.
    */
@@ -822,5 +835,30 @@ private[spark] object Utils extends Logging {
   def getSystemProperties(): Map[String, String] = {
     return System.getProperties().clone()
       .asInstanceOf[java.util.Properties].toMap[String, String]
+  }
+
+  /** 
+   * Executes the given block, printing and re-throwing any uncaught exceptions.
+   * This is particularly useful for wrapping code that runs in a thread, to ensure
+   * that exceptions are printed, and to avoid having to catch Throwable.
+   */
+  def logUncaughtExceptions[T](f: => T): T = {
+    try {
+      f
+    } catch {
+      case t: Throwable =>
+        logError("Uncaught exception in thread " + Thread.currentThread().getName, t)
+        throw t
+    }
+  }
+
+  /** Returns true if the given exception was fatal. See docs for scala.util.control.NonFatal. */
+  def isFatalError(e: Throwable): Boolean = {
+    e match {
+      case NonFatal(_) | _: InterruptedException | _: ControlThrowable =>
+        false
+      case _ =>
+        true
+    }
   }
 }

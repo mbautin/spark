@@ -218,8 +218,8 @@ class SparkContext(
         } catch {
           // TODO: Enumerate the exact reasons why it can fail
           // But irrespective of it, it means we cannot proceed !
-          case th: Throwable => {
-            throw new SparkException("YARN mode not available ?", th)
+          case e: Exception => {
+            throw new SparkException("YARN mode not available ?", e)
           }
         }
         val backend = new CoarseGrainedSchedulerBackend(scheduler, this.env.actorSystem)
@@ -233,8 +233,8 @@ class SparkContext(
           cons.newInstance(this).asInstanceOf[ClusterScheduler]
 
         } catch {
-          case th: Throwable => {
-            throw new SparkException("YARN mode not available ?", th)
+          case e: Exception => {
+            throw new SparkException("YARN mode not available ?", e)
           }
         }
 
@@ -243,8 +243,8 @@ class SparkContext(
           val cons = clazz.getConstructor(classOf[ClusterScheduler], classOf[SparkContext])
           cons.newInstance(scheduler, this).asInstanceOf[CoarseGrainedSchedulerBackend]
         } catch {
-          case th: Throwable => {
-            throw new SparkException("YARN mode not available ?", th)
+          case e: Exception => {
+            throw new SparkException("YARN mode not available ?", e)
           }
         }
 
