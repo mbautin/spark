@@ -45,6 +45,8 @@ import org.apache.spark.util.{Utils, BoundedPriorityQueue, SerializableHyperLogL
 
 import org.apache.spark.SparkContext._
 import org.apache.spark._
+import scala.concurrent.duration.Duration
+import java.util.concurrent.TimeUnit
 
 /**
  * A Resilient Distributed Dataset (RDD), the basic abstraction in Spark. Represents an immutable,
@@ -619,6 +621,19 @@ abstract class RDD[T: ClassTag](
    */
   def collect[U: ClassTag](f: PartialFunction[T, U]): RDD[U] = {
     filter(f.isDefinedAt).map(f)
+  }
+
+  /**
+   * Return iterator that lazily fetches partitions
+   * @param prefetchPartitions How many partitions to prefetch. Larger value increases parallelism
+   *                           but also increases driver memory requirement.
+   * @param partitionBatchSize How many partitions fetch per job
+   * @param timeOut how long to wait for each partition fetch
+   * @return Iterable of every element in this RDD
+   */
+  def toIterator(prefetchPartitions: Int = 1, partitionBatchSize: Int = 10,
+                 timeOut: Duration = Duration(30, TimeUnit.SECONDS)):Iterator[T] = {
+    new RDDiterator[T](this, prefetchPartitions,partitionBatchSize, timeOut)
   }
 
   /**
