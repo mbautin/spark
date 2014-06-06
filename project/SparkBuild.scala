@@ -32,7 +32,7 @@ import scala.collection.JavaConversions._
 // import com.jsuereth.pgp.sbtplugin.PgpKeys._
 
 object SparkBuild extends Build {
-  val SPARK_VERSION = "1.0.0-SNAPSHOT"
+  val SPARK_VERSION = "1.0.1-SNAPSHOT"
   val SPARK_VERSION_SHORT = SPARK_VERSION.replaceAll("-SNAPSHOT", "")
 
   // Hadoop version to build against. For example, "1.0.4" for Apache releases, or
@@ -212,6 +212,7 @@ object SparkBuild extends Build {
       "JBoss Repository"     at "https://repository.jboss.org/nexus/content/repositories/releases/",
       "MQTT Repository"      at "https://repo.eclipse.org/content/repositories/paho-releases/",
       "Cloudera Repository"  at "http://repository.cloudera.com/artifactory/cloudera-repos/",
+      "Pivotal Repository"   at "http://repo.spring.io/libs-release/",
       // For Sonatype publishing
       // "sonatype-snapshots"   at "https://oss.sonatype.org/content/repositories/snapshots",
       // "sonatype-staging"     at "https://oss.sonatype.org/service/local/staging/deploy/maven2/",
