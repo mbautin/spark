@@ -30,3 +30,4 @@ private[spark] trait ExecutorBackend {
   // Exists as a work around for SPARK-1112. This only exists in branch-1.x of Spark.
   def akkaFrameSize(): Long = Long.MaxValue
 }
+

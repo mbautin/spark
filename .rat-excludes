@@ -3,6 +3,9 @@ target
 .project
 .classpath
 .mima-excludes
+.generated-mima-excludes
+.generated-mima-class-excludes
+.generated-mima-member-excludes
 .rat-excludes
 .*md
 derby.log

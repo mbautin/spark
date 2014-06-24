@@ -21,6 +21,9 @@
 FWDIR="$(cd `dirname $0`/..; pwd)"
 cd $FWDIR
 
+export SPARK_HADOOP_VERSION=2.3.0
+export SPARK_YARN=true
+
 # Remove work directory
 rm -rf ./work
 
@@ -78,5 +81,4 @@ echo "========================================================================="
 echo "========================================================================="
 echo "Detecting binary incompatibilites with MiMa"
 echo "========================================================================="
-./bin/spark-class org.apache.spark.tools.GenerateMIMAIgnore
-echo -e "q\n" | sbt/sbt mima-report-binary-issues | grep -v -e "info.*Resolving" 
+dev/mima
