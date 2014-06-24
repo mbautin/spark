@@ -94,7 +94,7 @@ class SQLContext(@transient val sparkContext: SparkContext)
    * @group userf
    */
   def parquetFile(path: String): SchemaRDD =
-    new SchemaRDD(this, parquet.ParquetRelation(path))
+    new SchemaRDD(this, parquet.ParquetRelation(path, Some(sparkContext.hadoopConfiguration)))
 
   /**
    * Loads a JSON file (one object per line), returning the result as a [[SchemaRDD]].
@@ -187,10 +187,15 @@ class SQLContext(@transient val sparkContext: SparkContext)
   /** Caches the specified table in-memory. */
   def cacheTable(tableName: String): Unit = {
     val currentTable = catalog.lookupRelation(None, tableName)
-    val useCompression =
-      sparkContext.conf.getBoolean("spark.sql.inMemoryColumnarStorage.compressed", false)
-    val asInMemoryRelation =
-      InMemoryRelation(useCompression, executePlan(currentTable).executedPlan)
+    val asInMemoryRelation = EliminateAnalysisOperators(currentTable.logicalPlan) match {
+      case _: InMemoryRelation =>
+        currentTable.logicalPlan
+
+      case _ =>
+        val useCompression =
+          sparkContext.conf.getBoolean("spark.sql.inMemoryColumnarStorage.compressed", false)
+        InMemoryRelation(useCompression, executePlan(currentTable).executedPlan)
+    }
 
     catalog.registerTable(None, tableName, asInMemoryRelation)
   }
@@ -221,7 +226,9 @@ class SQLContext(@transient val sparkContext: SparkContext)
   }
 
   protected[sql] class SparkPlanner extends SparkStrategies {
-    val sparkContext = self.sparkContext
+    val sparkContext: SparkContext = self.sparkContext
+
+    val sqlContext: SQLContext = self
 
     def numPartitions = self.numShufflePartitions
 
