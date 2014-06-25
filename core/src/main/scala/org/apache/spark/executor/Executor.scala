@@ -209,8 +209,7 @@ private[spark] class Executor(
         logInfo("Serialized size of result for " + taskId + " is " + serializedDirectResult.limit)
 
         val serializedResult = {
-          if (serializedDirectResult.limit >= execBackend.akkaFrameSize() -
-              AkkaUtils.reservedSizeBytes) {
+          if (serializedDirectResult.limit >= akkaFrameSize - AkkaUtils.reservedSizeBytes) {
             logInfo("Storing result for " + taskId + " in local BlockManager")
             val blockId = TaskResultBlockId(taskId)
             env.blockManager.putBytes(
