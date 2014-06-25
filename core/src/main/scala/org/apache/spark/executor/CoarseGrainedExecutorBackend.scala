@@ -95,9 +95,6 @@ private[spark] class CoarseGrainedExecutorBackend(
   override def statusUpdate(taskId: Long, state: TaskState, data: ByteBuffer) {
     driver ! StatusUpdate(executorId, taskId, state, data)
   }
-
-  override def akkaFrameSize() = actorSystem.settings.config.getBytes(
-    "akka.remote.netty.tcp.maximum-frame-size")
 }
 
 private[spark] object CoarseGrainedExecutorBackend {
