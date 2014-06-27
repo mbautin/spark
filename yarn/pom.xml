@@ -20,11 +20,8 @@
   <parent>
     <groupId>org.apache.spark</groupId>
     <artifactId>spark-parent</artifactId>
-<<<<<<< HEAD
-    <version>1.0.0-candidate-csd-1-SNAPSHOT</version>
-=======
-    <version>1.0.1-SNAPSHOT</version>
->>>>>>> 1696a44704b8efa6515da9fa311f8acd9dda970e
+    <version>1.0.2-candidate-csd-1-SNAPSHOT</version>
+    <version>1.0.2-SNAPSHOT</version>
     <relativePath>../pom.xml</relativePath>
   </parent>
 
