@@ -31,6 +31,8 @@ import org.apache.spark.deploy.{ApplicationDescription, ExecutorState}
 import org.apache.spark.deploy.DeployMessages._
 import org.apache.spark.deploy.master.Master
 import org.apache.spark.util.AkkaUtils
+import org.apache.spark.util.Utils
+
 
 /**
  * Interface allowing applications to speak with a Spark deploy cluster. Takes a master URL,
@@ -88,14 +90,16 @@ private[spark] class AppClient(
       var retries = 0
       registrationRetryTimer = Some {
         context.system.scheduler.schedule(REGISTRATION_TIMEOUT, REGISTRATION_TIMEOUT) {
-          retries += 1
-          if (registered) {
-            registrationRetryTimer.foreach(_.cancel())
-          } else if (retries >= REGISTRATION_RETRIES) {
-            logError("All masters are unresponsive! Giving up.")
-            markDead()
-          } else {
-            tryRegisterAllMasters()
+          Utils.tryOrExit {
+            retries += 1
+            if (registered) {
+              registrationRetryTimer.foreach(_.cancel())
+            } else if (retries >= REGISTRATION_RETRIES) {
+              logError("All masters are unresponsive! Giving up.")
+              markDead()
+            } else {
+              tryRegisterAllMasters()
+            }
           }
         }
       }
