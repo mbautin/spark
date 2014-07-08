@@ -26,6 +26,7 @@ import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.language.postfixOps
 import scala.reflect.ClassTag
+import scala.util.control.NonFatal
 
 import akka.actor._
 import akka.actor.OneForOneStrategy
@@ -578,8 +579,9 @@ class DAGScheduler(
       }
     } catch {
       case e: Exception =>
-        jobResult = JobFailed(e)
-        job.listener.jobFailed(e)
+        val exception = new SparkDriverExecutionException(e)
+        jobResult = JobFailed(exception)
+        job.listener.jobFailed(exception)
     } finally {
       val s = job.finalStage
       stageIdToJobIds -= s.id    // clean up data structures that were populated for a local job,
@@ -770,6 +772,10 @@ class DAGScheduler(
           abortStage(stage, "Task not serializable: " + e.toString)
           runningStages -= stage
           return
+        case NonFatal(e) => // Other exceptions, such as IllegalArgumentException from Kryo.
+          abortStage(stage, s"Task serialization failed: $e\n${e.getStackTraceString}")
+          runningStages -= stage
+          return
       }
 
       logInfo("Submitting " + tasks.size + " missing tasks from " + stage + " (" + stage.rdd + ")")
@@ -815,6 +821,7 @@ class DAGScheduler(
       case Success =>
         logInfo("Completed " + task)
         if (event.accumUpdates != null) {
+          // TODO: fail the stage if the accumulator update fails...
           Accumulators.add(event.accumUpdates) // TODO: do this only if task wasn't resubmitted
         }
         pendingTasks(stage) -= task
@@ -831,7 +838,16 @@ class DAGScheduler(
                     cleanupStateForJobAndIndependentStages(job, Some(stage))
                     listenerBus.post(SparkListenerJobEnd(job.jobId, JobSucceeded))
                   }
-                  job.listener.taskSucceeded(rt.outputId, event.result)
+
+                  // taskSucceeded runs some user code that might throw an exception. Make sure
+                  // we are resilient against that.
+                  try {
+                    job.listener.taskSucceeded(rt.outputId, event.result)
+                  } catch {
+                    case e: Exception =>
+                      // TODO: Perhaps we want to mark the stage as failed?
+                      job.listener.jobFailed(new SparkDriverExecutionException(e))
+                  }
                 }
               case None =>
                 logInfo("Ignoring result from " + rt + " because its job has finished")
@@ -1154,8 +1170,7 @@ private[scheduler] class DAGSchedulerActorSupervisor(dagScheduler: DAGScheduler)
   override val supervisorStrategy =
     OneForOneStrategy() {
       case x: Exception =>
-        logError("eventProcesserActor failed due to the error %s; shutting down SparkContext"
-          .format(x.getMessage))
+        logError("eventProcesserActor failed; shutting down SparkContext", x)
         try {
           dagScheduler.doCancelAllJobs()
         } catch {
