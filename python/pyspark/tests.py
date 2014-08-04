@@ -111,11 +111,17 @@ class TestAddFile(PySparkTestCase):
     def test_add_py_file(self):
         # To ensure that we're actually testing addPyFile's effects, check that
         # this job fails due to `userlibrary` not being on the Python path:
+        # disable logging in log4j temporarily
+        log4j = self.sc._jvm.org.apache.log4j
+        old_level = log4j.LogManager.getRootLogger().getLevel()
+        log4j.LogManager.getRootLogger().setLevel(log4j.Level.FATAL)
         def func(x):
             from userlibrary import UserClass
             return UserClass().hello()
         self.assertRaises(Exception,
                           self.sc.parallelize(range(2)).map(func).first)
+        log4j.LogManager.getRootLogger().setLevel(old_level)
+
         # Add the file, so the job should now succeed:
         path = os.path.join(SPARK_HOME, "python/test_support/userlibrary.py")
         self.sc.addPyFile(path)
@@ -191,6 +197,12 @@ class TestRDDFunctions(PySparkTestCase):
         self.assertEqual(1, filtered_data.count())
         os.unlink(tempFile.name)
         self.assertRaises(Exception, lambda: filtered_data.count())
+
+    def test_itemgetter(self):
+        rdd = self.sc.parallelize([range(10)])
+        from operator import itemgetter
+        self.assertEqual([1], rdd.map(itemgetter(1)).collect())
+        self.assertEqual([(2, 3)], rdd.map(itemgetter(2, 3)).collect())
 
 
 class TestIO(PySparkTestCase):
