@@ -729,20 +729,6 @@ def _check_output(*popenargs, **kwargs):
         raise subprocess.CalledProcessError(retcode, cmd, output=output)
     return output
 
-# Backported from Python 2.7 for compatiblity with 2.6 (See SPARK-1990)
-def _check_output(*popenargs, **kwargs):
-    if 'stdout' in kwargs:
-        raise ValueError('stdout argument not allowed, it will be overridden.')
-    process = subprocess.Popen(stdout=subprocess.PIPE, *popenargs, **kwargs)
-    output, unused_err = process.communicate()
-    retcode = process.poll()
-    if retcode:
-        cmd = kwargs.get("args")
-        if cmd is None:
-            cmd = popenargs[0]
-        raise subprocess.CalledProcessError(retcode, cmd, output=output)
-    return output
-
 
 def ssh_read(host, opts, command):
     return _check_output(

@@ -814,11 +814,6 @@ Apart from these, the following properties are also available, and may be useful
     <code>-Dspark.com.test.filter1.params='param1=foo,param2=testing'</code>
   </td>
 </tr>
-</table>
-
-#### Security
-<table class="table">
-<tr><th>Property Name</th><th>Default</th><th>Meaning</th></tr>
 <tr>
   <td><code>spark.acls.enable</code></td>
   <td>false</td>
@@ -918,11 +913,6 @@ Apart from these, the following properties are also available, and may be useful
     for automatic cleaning of old logs.
   </td>
 </tr>
-</table>
-
-#### Spark Streaming
-<table class="table">
-<tr><th>Property Name</th><th>Default</th><th>Meaning</th></tr>
 <tr>
   <td><code>spark.executor.logs.rolling.maxRetainedFiles</code></td>
   <td>(none)</td>

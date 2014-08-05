@@ -20,11 +20,12 @@ package org.apache.spark.scheduler.local
 import java.nio.ByteBuffer
 
 import akka.actor.{Actor, ActorRef, Props}
+
 import org.apache.spark.{Logging, SparkEnv, TaskState}
 import org.apache.spark.TaskState.TaskState
 import org.apache.spark.executor.{TaskMetrics, Executor, ExecutorBackend}
 import org.apache.spark.scheduler.{SchedulerBackend, TaskSchedulerImpl, WorkerOffer}
-import org.apache.spark.util.AkkaUtils
+import org.apache.spark.storage.BlockManagerId
 
 private case class ReviveOffers()
 
@@ -113,8 +114,4 @@ private[spark] class LocalBackend(scheduler: TaskSchedulerImpl, val totalCores: 
   override def statusUpdate(taskId: Long, state: TaskState, serializedData: ByteBuffer) {
     localActor ! StatusUpdate(taskId, state, serializedData)
   }
-
-  // This limit is calculated only to preserve expected behavior in tests. In reality, since this
-  // backend sends messages over the existing actor system, there is no need to enforce a limit.
-  override def akkaFrameSize() = AkkaUtils.maxFrameSizeBytes(scheduler.sc.getConf)
 }
