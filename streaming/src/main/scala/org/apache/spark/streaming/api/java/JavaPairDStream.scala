@@ -663,8 +663,8 @@ class JavaPairDStream[K, V](val dstream: DStream[(K, V)])(
    * `other` DStream. Hash partitioning is used to generate the RDDs with Spark's default
    * number of partitions.
    */
-  def fullOuterJoin[W](other: JavaPairDStream[K, W]): 
-      JavaPairDStream[K, (Optional[V], Optional[W])] = {
+  def fullOuterJoin[W](
+      other: JavaPairDStream[K, W]): JavaPairDStream[K, (Optional[V], Optional[W])] = {
     implicit val cm: ClassTag[W] = implicitly[ClassTag[AnyRef]].asInstanceOf[ClassTag[W]]
     val joinResult = dstream.fullOuterJoin(other.dstream)
     joinResult.mapValues { case (v, w) => 

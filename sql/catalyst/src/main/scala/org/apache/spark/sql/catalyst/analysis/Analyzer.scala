@@ -109,12 +109,12 @@ class Analyzer(catalog: Catalog, registry: FunctionRegistry, caseSensitive: Bool
   object ResolveReferences extends Rule[LogicalPlan] {
     def apply(plan: LogicalPlan): LogicalPlan = plan transformUp {
       case q: LogicalPlan if q.childrenResolved =>
-        logger.trace(s"Attempting to resolve ${q.simpleString}")
+        logTrace(s"Attempting to resolve ${q.simpleString}")
         q transformExpressions {
           case u @ UnresolvedAttribute(name) =>
             // Leave unchanged if resolution fails.  Hopefully will be resolved next round.
             val result = q.resolve(name).getOrElse(u)
-            logger.debug(s"Resolving $u to $result")
+            logDebug(s"Resolving $u to $result")
             result
         }
     }
@@ -159,7 +159,7 @@ class Analyzer(catalog: Catalog, registry: FunctionRegistry, caseSensitive: Bool
   object UnresolvedHavingClauseAttributes extends Rule[LogicalPlan] {
     def apply(plan: LogicalPlan): LogicalPlan = plan transformUp {
       case filter @ Filter(havingCondition, aggregate @ Aggregate(_, originalAggExprs, _)) 
-          if !filter.resolved && aggregate.resolved && containsAggregate(havingCondition) => {
+          if aggregate.resolved && containsAggregate(havingCondition) => {
         val evaluatedCondition = Alias(havingCondition,  "havingCondition")()
         val aggExprsWithHaving = evaluatedCondition +: originalAggExprs
         
