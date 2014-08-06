@@ -206,6 +206,14 @@ Apart from these, the following properties are also available, and may be useful
     used during aggregation goes above this amount, it will spill the data into disks.
   </td>
 </tr>
+<tr>
+  <td><code>spark.executorEnv.[EnvironmentVariableName]</code></td>
+  <td>(none)</td>
+  <td>
+    Add the environment variable specified by <code>EnvironmentVariableName</code> to the Executor 
+    process. The user can specify multiple of these and to set multiple environment variables. 
+  </td>
+</tr>
 </table>
 
 #### Shuffle Behavior
@@ -258,7 +266,7 @@ Apart from these, the following properties are also available, and may be useful
 </tr>
 <tr>
   <td><code>spark.shuffle.file.buffer.kb</code></td>
-  <td>100</td>
+  <td>32</td>
   <td>
     Size of the in-memory buffer for each shuffle file output stream, in kilobytes. These buffers
     reduce the number of disk seeks and system calls made in creating intermediate shuffle files.
@@ -412,7 +420,7 @@ Apart from these, the following properties are also available, and may be useful
 </tr>
 <tr>
   <td><code>spark.kryoserializer.buffer.mb</code></td>
-  <td>2</td>
+  <td>0.064</td>
   <td>
     Initial size of Kryo's serialization buffer, in megabytes. Note that there will be one buffer
      <i>per core</i> on each worker. This buffer will grow up to
@@ -558,6 +566,7 @@ Apart from these, the following properties are also available, and may be useful
   <td>(local hostname)</td>
   <td>
     Hostname or IP address for the driver to listen on.
+    This is used for communicating with the executors and the standalone Master.
   </td>
 </tr>
 <tr>
@@ -565,6 +574,51 @@ Apart from these, the following properties are also available, and may be useful
   <td>(random)</td>
   <td>
     Port for the driver to listen on.
+    This is used for communicating with the executors and the standalone Master.
+  </td>
+</tr>
+<tr>
+  <td><code>spark.fileserver.port</code></td>
+  <td>(random)</td>
+  <td>
+    Port for the driver's HTTP file server to listen on.
+  </td>
+</tr>
+<tr>
+  <td><code>spark.broadcast.port</code></td>
+  <td>(random)</td>
+  <td>
+    Port for the driver's HTTP broadcast server to listen on.
+    This is not relevant for torrent broadcast.
+  </td>
+</tr>
+<tr>
+  <td><code>spark.replClassServer.port</code></td>
+  <td>(random)</td>
+  <td>
+    Port for the driver's HTTP class server to listen on.
+    This is only relevant for the Spark shell.
+  </td>
+</tr>
+<tr>
+  <td><code>spark.blockManager.port</code></td>
+  <td>(random)</td>
+  <td>
+    Port for all block managers to listen on. These exist on both the driver and the executors.
+  </td>
+</tr>
+<tr>
+  <td><code>spark.executor.port</code></td>
+  <td>(random)</td>
+  <td>
+    Port for the executor to listen on. This is used for communicating with the driver.
+  </td>
+</tr>
+<tr>
+  <td><code>spark.port.maxRetries</code></td>
+  <td>16</td>
+  <td>
+    Maximum number of retries when binding to a port before giving up.
   </td>
 </tr>
 <tr>
