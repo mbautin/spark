@@ -15,12 +15,19 @@
  * limitations under the License.
  */
 
-package org.apache.spark.network.netty;
+package org.apache.spark.util
 
-import org.apache.spark.storage.BlockId;
-import org.apache.spark.storage.FileSegment;
+import java.util.EventListener
 
-public interface PathResolver {
-  /** Get the file segment in which the given block resides. */
-  FileSegment getBlockLocation(BlockId blockId);
+import org.apache.spark.TaskContext
+import org.apache.spark.annotation.DeveloperApi
+
+/**
+ * :: DeveloperApi ::
+ *
+ * Listener providing a callback function to invoke when a task's execution completes.
+ */
+@DeveloperApi
+trait TaskCompletionListener extends EventListener {
+  def onTaskCompletion(context: TaskContext)
 }
