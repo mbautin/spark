@@ -15,27 +15,25 @@
  * limitations under the License.
  */
 
-package org.apache.spark.network.netty;
+package org.apache.spark.util;
 
-import io.netty.channel.ChannelInitializer;
-import io.netty.channel.socket.SocketChannel;
-import io.netty.handler.codec.DelimiterBasedFrameDecoder;
-import io.netty.handler.codec.Delimiters;
-import io.netty.handler.codec.string.StringDecoder;
+import org.apache.spark.TaskContext;
 
-class FileServerChannelInitializer extends ChannelInitializer<SocketChannel> {
 
-  private final PathResolver pResolver;
-
-  FileServerChannelInitializer(PathResolver pResolver) {
-    this.pResolver = pResolver;
-  }
+/**
+ * A simple implementation of TaskCompletionListener that makes sure TaskCompletionListener and
+ * TaskContext is Java friendly.
+ */
+public class JavaTaskCompletionListenerImpl implements TaskCompletionListener {
 
   @Override
-  public void initChannel(SocketChannel channel) {
-    channel.pipeline()
-      .addLast("framer", new DelimiterBasedFrameDecoder(8192, Delimiters.lineDelimiter()))
-      .addLast("stringDecoder", new StringDecoder())
-      .addLast("handler", new FileServerHandler(pResolver));
+  public void onTaskCompletion(TaskContext context) {
+    context.isCompleted();
+    context.isInterrupted();
+    context.stageId();
+    context.partitionId();
+    context.runningLocally();
+    context.taskMetrics();
+    context.addTaskCompletionListener(this);
   }
 }
