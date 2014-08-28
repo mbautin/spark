@@ -18,11 +18,7 @@
 package org.apache.spark.scheduler
 
 import org.scalatest.FunSuite
-import org.scalatest.BeforeAndAfter
-
 import org.apache.spark._
-import scala.collection.mutable.ArrayBuffer
-
 import java.util.Properties
 
 class FakeSchedulerBackend extends SchedulerBackend {
@@ -136,16 +132,15 @@ class ClusterSchedulerSuite extends FunSuite with LocalSparkContext with Logging
     -1
   }
 
-  def checkTaskSetId(rootPool: Pool, expectedTaskSetId: Int) {
-    assert(resourceOffer(rootPool) === expectedTaskSetId)
-  }
-
   test("FIFO Scheduler Test") {
     sc = new SparkContext("local", "ClusterSchedulerSuite")
     val clusterScheduler = new TaskSchedulerImpl(sc)
     val taskSet = FakeTask.createTaskSet(1)
 
     val rootPool = new Pool("", SchedulingMode.FIFO, 0, 0)
+    def checkTaskSetId(expectedTaskSetId: Int) {
+      assert(resourceOffer(rootPool) === expectedTaskSetId)
+    }
     val schedulableBuilder = new FIFOSchedulableBuilder(rootPool)
     schedulableBuilder.buildPools()
 
@@ -156,12 +151,12 @@ class ClusterSchedulerSuite extends FunSuite with LocalSparkContext with Logging
     schedulableBuilder.addTaskSetManager(taskSetManager1, null)
     schedulableBuilder.addTaskSetManager(taskSetManager2, null)
 
-    checkTaskSetId(rootPool, 0)
+    checkTaskSetId(0)
     resourceOffer(rootPool)
-    checkTaskSetId(rootPool, 1)
+    checkTaskSetId(1)
     resourceOffer(rootPool)
     taskSetManager1.abort()
-    checkTaskSetId(rootPool, 2)
+    checkTaskSetId(2)
   }
 
   test("Fair Scheduler Test") {
@@ -169,7 +164,7 @@ class ClusterSchedulerSuite extends FunSuite with LocalSparkContext with Logging
     val clusterScheduler = new TaskSchedulerImpl(sc)
     val taskSet = FakeTask.createTaskSet(1)
 
-    val xmlPath = getClass.getClassLoader.getResource("fairscheduler.xml").getFile()
+    val xmlPath = getClass.getClassLoader.getResource("fairscheduler.xml").getFile
     System.setProperty("spark.scheduler.allocation.file", xmlPath)
     val rootPool = new Pool("", SchedulingMode.FAIR, 0, 0)
     val schedulableBuilder = new FairSchedulableBuilder(rootPool, sc.conf)
@@ -203,20 +198,44 @@ class ClusterSchedulerSuite extends FunSuite with LocalSparkContext with Logging
     schedulableBuilder.addTaskSetManager(taskSetManager23, properties2)
     schedulableBuilder.addTaskSetManager(taskSetManager24, properties2)
 
-    checkTaskSetId(rootPool, 0)
-    checkTaskSetId(rootPool, 3)
-    checkTaskSetId(rootPool, 3)
-    checkTaskSetId(rootPool, 1)
-    checkTaskSetId(rootPool, 4)
-    checkTaskSetId(rootPool, 2)
-    checkTaskSetId(rootPool, 2)
-    checkTaskSetId(rootPool, 4)
+    var choices = Set(0, 3)
+    var chosen = resourceOffer(rootPool)
+    assert(choices.contains(chosen))
+
+    choices -= chosen
+    chosen = resourceOffer(rootPool)
+    assert(choices.contains(chosen))
+
+    choices = Set(3)
+    chosen = resourceOffer(rootPool)
+    assert(choices.contains(chosen))
+
+    choices = Set(1)
+    chosen = resourceOffer(rootPool)
+    assert(choices.contains(chosen))
+
+    choices = Set(4)
+    chosen = resourceOffer(rootPool)
+    assert(choices.contains(chosen))
+
+    choices = Set(2)
+    chosen = resourceOffer(rootPool)
+    assert(choices.contains(chosen))
+
+    choices += 4
+    chosen = resourceOffer(rootPool)
+    assert(choices.contains(chosen))
+
+    choices -= chosen
+    chosen = resourceOffer(rootPool)
+    assert(choices.contains(chosen))
 
     taskSetManager12.taskFinished()
     assert(rootPool.getSchedulableByName("1").runningTasks === 3)
     taskSetManager24.abort()
     assert(rootPool.getSchedulableByName("2").runningTasks === 2)
   }
+
 
   test("Nested Pool Test") {
     sc = new SparkContext("local", "ClusterSchedulerSuite")
@@ -259,10 +278,22 @@ class ClusterSchedulerSuite extends FunSuite with LocalSparkContext with Logging
     pool11.addSchedulable(taskSetManager110)
     pool11.addSchedulable(taskSetManager111)
 
-    checkTaskSetId(rootPool, 0)
-    checkTaskSetId(rootPool, 4)
-    checkTaskSetId(rootPool, 6)
-    checkTaskSetId(rootPool, 2)
+    var choices = (0 to 7).toSet
+    val chosen1 = resourceOffer(rootPool)
+    assert(choices.contains(chosen1))
+
+    choices = if (chosen1 < 4) (4 to 7).toSet else (0 to 3).toSet
+    val chosen2 = resourceOffer(rootPool)
+    assert(choices.contains(chosen2))
+
+    val pool0Choice = math.min(chosen1, chosen2)
+    val pool1Choice = math.max(chosen1, chosen2)
+
+    choices = if (pool1Choice > 5) Set(4, 5) else Set(6, 7)
+    assert(choices.contains(resourceOffer(rootPool)))
+
+    choices = if (pool0Choice > 1) Set(0, 1) else Set(2, 3)
+    assert(choices.contains(resourceOffer(rootPool)))
   }
 
   test("Scheduler does not always schedule tasks on the same workers") {
@@ -291,7 +322,7 @@ class ClusterSchedulerSuite extends FunSuite with LocalSparkContext with Logging
       assert(1 === taskDescriptions.length)
       taskDescriptions(0).executorId
     }
-    var count = selectedExecutorIds.count(_ == workerOffers(0).executorId)
+    val count = selectedExecutorIds.count(_ == workerOffers(0).executorId)
     assert(count > 0)
     assert(count < numTrials)
   }

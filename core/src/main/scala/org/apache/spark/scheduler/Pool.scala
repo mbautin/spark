@@ -17,8 +17,9 @@
 
 package org.apache.spark.scheduler
 
-import scala.collection.mutable.ArrayBuffer
-import scala.collection.mutable.HashMap
+import scala.annotation.tailrec
+import scala.collection.mutable.{ArrayBuffer, HashMap, PriorityQueue}
+import scala.util.Random
 
 import org.apache.spark.Logging
 import org.apache.spark.scheduler.SchedulingMode.SchedulingMode
@@ -97,7 +98,25 @@ private[spark] class Pool(
 
   override def getSortedTaskSetQueue(): ArrayBuffer[TaskSetManager] = {
     var sortedTaskSetQueue = new ArrayBuffer[TaskSetManager]
-    val sortedSchedulableQueue = schedulableQueue.sortWith(taskSetSchedulingAlgorithm.comparator)
+    val ord = taskSetSchedulingAlgorithm.ordering
+    val pq = PriorityQueue()(ord.reverse) ++ schedulableQueue
+    val dq = pq.dequeueAll
+
+    @tailrec
+    def shuffleEquivalencyClasses(
+        acc: IndexedSeq[Schedulable],
+        spans: (IndexedSeq[Schedulable], IndexedSeq[Schedulable]))
+      : IndexedSeq[Schedulable] = {
+      val shuffled = Random.shuffle(spans._1)
+      if (spans._2.isEmpty) {
+        acc ++ shuffled
+      } else {
+        shuffleEquivalencyClasses(acc ++ shuffled, spans._2.span(ord.compare(_, spans._2(0)) == 0))
+      }
+    }
+
+    val sortedSchedulableQueue =
+      shuffleEquivalencyClasses(ArrayBuffer[Schedulable](), dq.span(ord.compare(_, dq(0)) == 0))
     for (schedulable <- sortedSchedulableQueue) {
       sortedTaskSetQueue ++= schedulable.getSortedTaskSetQueue()
     }
