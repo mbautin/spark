@@ -215,7 +215,7 @@ private[spark] class Worker(
           logInfo("Asked to launch executor %s/%d for %s".format(appId, execId, appDesc.name))
           val effectiveSparkHome = Option(execSparkHome_).getOrElse(sparkHome.getAbsolutePath)
           val manager = new ExecutorRunner(appId, execId, appDesc, cores_, memory_,
-            self, workerId, host, new File(effectiveSparkHome), workDir, akkaUrl, conf, ExecutorState.LOADING)
+            self, workerId, host, new File(effectiveSparkHome), workDir, akkaUrl, ExecutorState.LOADING)
           executors(appId + "/" + execId) = manager
           manager.start()
           coresUsed += cores_
