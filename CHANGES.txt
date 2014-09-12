@@ -6549,7 +6549,6 @@ Release 1.1.0
   Commit: 79820fe, github.com/apache/spark/pull/204
 
 
->>>>>>> 446173ca1901a29cae7723f7818995d52ec29f6f
 Release 1.0.0
 
   HOTFIX: Add no-arg SparkContext constructor in Java
