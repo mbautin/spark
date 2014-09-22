@@ -253,11 +253,13 @@ private[hive] object HiveQl {
       }
     } catch {
       case e: Exception => throw new ParseException(sql, e)
-      case e: NotImplementedError => sys.error(
-        s"""
+      case e: NotImplementedError => sys.error {
+        val msg = s"""
           |Unsupported language features in query: $sql
           |${dumpTree(getAst(sql))}
-        """.stripMargin)
+          """.stripMargin
+        Option(e.getMessage).map(eMsg => s"$msg\n\n$eMsg").getOrElse(msg)
+        }
     }
   }
 
