@@ -70,7 +70,7 @@ private[spark] class MesosSchedulerBackend(
         setDaemon(true)
         override def run() {
           val scheduler = MesosSchedulerBackend.this
-          val fwInfo = FrameworkInfo.newBuilder().setUser("").setName(sc.appName).build()
+          val fwInfo = FrameworkInfo.newBuilder().setUser(sc.sparkUser).setName(sc.appName).build()
           driver = new MesosSchedulerDriver(scheduler, fwInfo, master)
           try {
             val ret = driver.run()
@@ -273,8 +273,7 @@ private[spark] class MesosSchedulerBackend(
     for (r <- res if r.getName == name) {
       return r.getScalar.getValue
     }
-    // If we reached here, no resource with the required name was present
-    throw new IllegalArgumentException("No resource called " + name + " in " + res)
+    0
   }
 
   /** Turn a Spark TaskDescription into a Mesos task */
