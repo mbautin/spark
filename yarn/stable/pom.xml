@@ -20,7 +20,11 @@
   <parent>
     <groupId>org.apache.spark</groupId>
     <artifactId>yarn-parent_2.10</artifactId>
+<<<<<<< HEAD
     <version>1.1.0-csd-1-SNAPSHOT</version>
+=======
+    <version>1.1.2-SNAPSHOT</version>
+>>>>>>> 685bdd2b7e584c84e7d39e40de2d5f30c5388cb5
     <relativePath>../pom.xml</relativePath>
   </parent>
   <properties>
