@@ -21,7 +21,7 @@
   <parent>
     <groupId>org.apache.spark</groupId>
     <artifactId>spark-parent</artifactId>
-    <version>1.1.0-csd-4-SNAPSHOT</version>
+    <version>1.1.1-candidate-csd-1-SNAPSHOT</version>
     <relativePath>../pom.xml</relativePath>
   </parent>
 
@@ -260,6 +260,16 @@
                     <data>
                       <src>${spark.jar}</src>
                       <type>file</type>
+                      <mapper>
+                        <type>perm</type>
+                        <user>${deb.user}</user>
+                        <group>${deb.user}</group>
+                        <prefix>${deb.install.path}/lib</prefix>
+                      </mapper>
+                    </data>
+                    <data>
+                      <src>${basedir}/../lib_managed/jars</src>
+                      <type>directory</type>
                       <mapper>
                         <type>perm</type>
                         <user>${deb.user}</user>
