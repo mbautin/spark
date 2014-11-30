@@ -14,7 +14,7 @@ title: Spark SQL Programming Guide
 Spark SQL allows relational queries expressed in SQL, HiveQL, or Scala to be executed using
 Spark.  At the core of this component is a new type of RDD,
 [SchemaRDD](api/scala/index.html#org.apache.spark.sql.SchemaRDD).  SchemaRDDs are composed of
-[Row](api/scala/index.html#org.apache.spark.sql.catalyst.expressions.Row) objects, along with
+[Row](api/scala/index.html#org.apache.spark.sql.package@Row:org.apache.spark.sql.catalyst.expressions.Row.type) objects, along with
 a schema that describes the data types of each column in the row.  A SchemaRDD is similar to a table
 in a traditional relational database.  A SchemaRDD can be created from an existing RDD, a [Parquet](http://parquet.io)
 file, a JSON dataset, or by running HiveQL against data stored in [Apache Hive](http://hive.apache.org/).
@@ -582,17 +582,25 @@ Configuration of Parquet can be done using the `setConf` method on SQLContext or
 </tr>
 <tr>
   <td><code>spark.sql.parquet.cacheMetadata</code></td>
-  <td>false</td>
+  <td>true</td>
   <td>
     Turns on caching of Parquet schema metadata.  Can speed up querying of static data.
   </td>
 </tr>
 <tr>
   <td><code>spark.sql.parquet.compression.codec</code></td>
-  <td>snappy</td>
+  <td>gzip</td>
   <td>
     Sets the compression codec use when writing Parquet files. Acceptable values include: 
     uncompressed, snappy, gzip, lzo.
+  </td>
+</tr>
+<tr>
+  <td><code>spark.sql.hive.convertMetastoreParquet</code></td>
+  <td>true</td>
+  <td>
+    When set to false, Spark SQL will use the Hive SerDe for parquet tables instead of the built in
+    support.
   </td>
 </tr>
 </table>
@@ -720,7 +728,7 @@ anotherPeople = sqlContext.jsonRDD(anotherPeopleRDD)
 
 Spark SQL also supports reading and writing data stored in [Apache Hive](http://hive.apache.org/).
 However, since Hive has a large number of dependencies, it is not included in the default Spark assembly.
-In order to use Hive you must first run "`sbt/sbt -Phive assembly/assembly`" (or use `-Phive` for maven).
+Hive support is enabled by adding the `-Phive` and `-Phive-thriftserver` flags to Spark's build.
 This command builds a new assembly jar that includes Hive. Note that this Hive assembly jar must also be present
 on all of the worker nodes, as they will need access to the Hive serialization and deserialization libraries
 (SerDes) in order to access data stored in Hive.
@@ -815,7 +823,7 @@ Configuration of in-memory caching can be done using the `setConf` method on SQL
 <tr><th>Property Name</th><th>Default</th><th>Meaning</th></tr>
 <tr>
   <td><code>spark.sql.inMemoryColumnarStorage.compressed</code></td>
-  <td>false</td>
+  <td>true</td>
   <td>
     When set to true Spark SQL will automatically select a compression codec for each column based
     on statistics of the data.
@@ -823,7 +831,7 @@ Configuration of in-memory caching can be done using the `setConf` method on SQL
 </tr>
 <tr>
   <td><code>spark.sql.inMemoryColumnarStorage.batchSize</code></td>
-  <td>1000</td>
+  <td>10000</td>
   <td>
     Controls the size of batches for columnar caching.  Larger batch sizes can improve memory utilization
     and compression, but risk OOMs when caching data.
@@ -841,7 +849,7 @@ that these options will be deprecated in future release as more optimizations ar
   <tr><th>Property Name</th><th>Default</th><th>Meaning</th></tr>
   <tr>
     <td><code>spark.sql.autoBroadcastJoinThreshold</code></td>
-    <td>10000</td>
+    <td>10485760 (10 MB)</td>
     <td>
       Configures the maximum size in bytes for a table that will be broadcast to all worker nodes when
       performing a join.  By setting this value to -1 broadcasting can be disabled.  Note that currently
@@ -872,12 +880,12 @@ that these options will be deprecated in future release as more optimizations ar
 Spark SQL also supports interfaces for running SQL queries directly without the need to write any
 code.
 
-## Running the Thrift JDBC server
+## Running the Thrift JDBC/ODBC server
 
-The Thrift JDBC server implemented here corresponds to the [`HiveServer2`](https://cwiki.apache.org/confluence/display/Hive/Setting+Up+HiveServer2)
+The Thrift JDBC/ODBC server implemented here corresponds to the [`HiveServer2`](https://cwiki.apache.org/confluence/display/Hive/Setting+Up+HiveServer2)
 in Hive 0.12. You can test the JDBC server with the beeline script that comes with either Spark or Hive 0.12.
 
-To start the JDBC server, run the following in the Spark directory:
+To start the JDBC/ODBC server, run the following in the Spark directory:
 
     ./sbin/start-thriftserver.sh
 
@@ -906,11 +914,12 @@ or system properties:
 ```
 {% endhighlight %}
 
-Now you can use beeline to test the Thrift JDBC server:
+Now you can use beeline to test the Thrift JDBC/ODBC server:
+
 
     ./bin/beeline
 
-Connect to the JDBC server in beeline with:
+Connect to the JDBC/ODBC server in beeline with:
 
     beeline> !connect jdbc:hive2://localhost:10000
 
@@ -919,6 +928,10 @@ your machine and a blank password. For secure mode, please follow the instructio
 [beeline documentation](https://cwiki.apache.org/confluence/display/Hive/HiveServer2+Clients).
 
 Configuration of Hive is done by placing your `hive-site.xml` file in `conf/`.
+You may run `./bin/spark-sql --help` for a complete list of all available
+options.
+
+# Compatibility with Other Systems
 
 You may also use the beeline script that comes with Hive.
 
@@ -1215,7 +1228,7 @@ import  org.apache.spark.sql._
 </tr>
 <tr>
   <td> <b>DecimalType</b> </td>
-  <td> scala.math.sql.BigDecimal </td>
+  <td> scala.math.BigDecimal </td>
   <td>
   DecimalType
   </td>
@@ -1253,7 +1266,7 @@ import  org.apache.spark.sql._
   <td> scala.collection.Seq </td>
   <td>
   ArrayType(<i>elementType</i>, [<i>containsNull</i>])<br />
-  <b>Note:</b> The default value of <i>containsNull</i> is <i>false</i>.
+  <b>Note:</b> The default value of <i>containsNull</i> is <i>true</i>.
   </td>
 </tr>
 <tr>
@@ -1379,7 +1392,7 @@ please use factory methods provided in
   <td> java.util.List </td>
   <td>
   DataType.createArrayType(<i>elementType</i>)<br />
-  <b>Note:</b> The value of <i>containsNull</i> will be <i>false</i><br />
+  <b>Note:</b> The value of <i>containsNull</i> will be <i>true</i><br />
   DataType.createArrayType(<i>elementType</i>, <i>containsNull</i>).
   </td>
 </tr>
@@ -1526,7 +1539,7 @@ from pyspark.sql import *
   <td> list, tuple, or array </td>
   <td>
   ArrayType(<i>elementType</i>, [<i>containsNull</i>])<br />
-  <b>Note:</b> The default value of <i>containsNull</i> is <i>False</i>.
+  <b>Note:</b> The default value of <i>containsNull</i> is <i>True</i>.
   </td>
 </tr>
 <tr>

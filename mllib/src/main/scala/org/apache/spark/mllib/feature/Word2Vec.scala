@@ -35,7 +35,7 @@ import org.apache.spark.util.Utils
 import org.apache.spark.util.random.XORShiftRandom
 
 /**
- *  Entry in vocabulary 
+ *  Entry in vocabulary
  */
 private case class VocabWord(
   var word: String,
@@ -49,25 +49,25 @@ private case class VocabWord(
  * :: Experimental ::
  * Word2Vec creates vector representation of words in a text corpus.
  * The algorithm first constructs a vocabulary from the corpus
- * and then learns vector representation of words in the vocabulary. 
- * The vector representation can be used as features in 
+ * and then learns vector representation of words in the vocabulary.
+ * The vector representation can be used as features in
  * natural language processing and machine learning algorithms.
- * 
- * We used skip-gram model in our implementation and hierarchical softmax 
+ *
+ * We used skip-gram model in our implementation and hierarchical softmax
  * method to train the model. The variable names in the implementation
  * matches the original C implementation.
  *
- * For original C implementation, see https://code.google.com/p/word2vec/ 
- * For research papers, see 
+ * For original C implementation, see https://code.google.com/p/word2vec/
+ * For research papers, see
  * Efficient Estimation of Word Representations in Vector Space
- * and 
+ * and
  * Distributed Representations of Words and Phrases and their Compositionality.
  */
 @Experimental
 class Word2Vec extends Serializable with Logging {
 
   private var vectorSize = 100
-  private var startingAlpha = 0.025
+  private var learningRate = 0.025
   private var numPartitions = 1
   private var numIterations = 1
   private var seed = Utils.random.nextLong()
@@ -84,7 +84,7 @@ class Word2Vec extends Serializable with Logging {
    * Sets initial learning rate (default: 0.025).
    */
   def setLearningRate(learningRate: Double): this.type = {
-    this.startingAlpha = learningRate
+    this.learningRate = learningRate
     this
   }
 
@@ -136,13 +136,13 @@ class Word2Vec extends Serializable with Logging {
       .map(x => VocabWord(
         x._1,
         x._2,
-        new Array[Int](MAX_CODE_LENGTH), 
-        new Array[Int](MAX_CODE_LENGTH), 
+        new Array[Int](MAX_CODE_LENGTH),
+        new Array[Int](MAX_CODE_LENGTH),
         0))
       .filter(_.cn >= minCount)
       .collect()
       .sortWith((a, b) => a.cn > b.cn)
-    
+
     vocabSize = vocab.length
     var a = 0
     while (a < vocabSize) {
@@ -181,8 +181,8 @@ class Word2Vec extends Serializable with Logging {
     }
     var pos1 = vocabSize - 1
     var pos2 = vocabSize
-    
-    var min1i = 0 
+
+    var min1i = 0
     var min2i = 0
 
     a = 0
@@ -251,15 +251,15 @@ class Word2Vec extends Serializable with Logging {
     val words = dataset.flatMap(x => x)
 
     learnVocab(words)
-    
+
     createBinaryTree()
-    
+
     val sc = dataset.context
 
     val expTable = sc.broadcast(createExpTable())
     val bcVocab = sc.broadcast(vocab)
     val bcVocabHash = sc.broadcast(vocabHash)
-    
+
     val sentences: RDD[Array[Int]] = words.mapPartitions { iter =>
       new Iterator[Array[Int]] {
         def hasNext: Boolean = iter.hasNext
@@ -280,13 +280,13 @@ class Word2Vec extends Serializable with Logging {
         }
       }
     }
-    
+
     val newSentences = sentences.repartition(numPartitions).cache()
     val initRandom = new XORShiftRandom(seed)
     val syn0Global =
       Array.fill[Float](vocabSize * vectorSize)((initRandom.nextFloat() - 0.5f) / vectorSize)
     val syn1Global = new Array[Float](vocabSize * vectorSize)
-    var alpha = startingAlpha
+    var alpha = learningRate
     for (k <- 1 to numIterations) {
       val partial = newSentences.mapPartitionsWithIndex { case (idx, iter) =>
         val random = new XORShiftRandom(seed ^ ((idx + 1) << 16) ^ ((-k - 1) << 8))
@@ -300,8 +300,8 @@ class Word2Vec extends Serializable with Logging {
               lwc = wordCount
               // TODO: discount by iteration?
               alpha =
-                startingAlpha * (1 - numPartitions * wordCount.toDouble / (trainWordsCount + 1))
-              if (alpha < startingAlpha * 0.0001) alpha = startingAlpha * 0.0001
+                learningRate * (1 - numPartitions * wordCount.toDouble / (trainWordsCount + 1))
+              if (alpha < learningRate * 0.0001) alpha = learningRate * 0.0001
               logInfo("wordCount = " + wordCount + ", alpha = " + alpha)
             }
             wc += sentence.size
@@ -378,7 +378,7 @@ class Word2Vec extends Serializable with Logging {
       }
     }
     newSentences.unpersist()
-    
+
     val word2VecMap = mutable.HashMap.empty[String, Array[Float]]
     var i = 0
     while (i < vocabSize) {
@@ -418,10 +418,10 @@ class Word2VecModel private[mllib] (
     if (norm1 == 0 || norm2 == 0) return 0.0
     blas.sdot(n, v1, 1, v2,1) / norm1 / norm2
   }
-  
+
   /**
    * Transforms a word to its vector representation
-   * @param word a word 
+   * @param word a word
    * @return vector representation of word
    */
   def transform(word: String): Vector = {
@@ -432,22 +432,22 @@ class Word2VecModel private[mllib] (
         throw new IllegalStateException(s"$word not in vocabulary")
     }
   }
-  
+
   /**
    * Find synonyms of a word
    * @param word a word
-   * @param num number of synonyms to find  
-   * @return array of (word, similarity)
+   * @param num number of synonyms to find
+   * @return array of (word, cosineSimilarity)
    */
   def findSynonyms(word: String, num: Int): Array[(String, Double)] = {
     val vector = transform(word)
     findSynonyms(vector,num)
   }
-  
+
   /**
    * Find synonyms of the vector representation of a word
    * @param vector vector representation of a word
-   * @param num number of synonyms to find  
+   * @param num number of synonyms to find
    * @return array of (word, cosineSimilarity)
    */
   def findSynonyms(vector: Vector, num: Int): Array[(String, Double)] = {
@@ -460,5 +460,12 @@ class Word2VecModel private[mllib] (
       .take(num + 1)
       .tail
       .toArray
+  }
+
+  /**
+   * Returns a map of words to their vector representations.
+   */
+  def getVectors: Map[String, Array[Float]] = {
+    model
   }
 }
