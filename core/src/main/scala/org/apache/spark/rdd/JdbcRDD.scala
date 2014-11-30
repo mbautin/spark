@@ -207,4 +207,3 @@ object JdbcRDD {
     create(sc, connectionFactory, sql, lowerBound, upperBound, numPartitions, mapRow)
   }
 }
-

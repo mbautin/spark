@@ -76,17 +76,6 @@ def cleanup_dead_children():
         pass
 
 
-# Cleanup zombie children
-def cleanup_dead_children():
-    try:
-        while True:
-            pid, _ = os.waitpid(0, os.WNOHANG)
-            if not pid:
-                break
-    except:
-        pass
-
-
 def manager():
     # Create a new process group to corral our children
     os.setpgid(0, 0)

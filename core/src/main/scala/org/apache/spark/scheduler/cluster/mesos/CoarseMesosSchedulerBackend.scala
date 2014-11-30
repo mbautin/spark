@@ -135,12 +135,6 @@ private[spark] class CoarseMesosSchedulerBackend(
         .setValue(extraJavaOpts)
         .build())
 
-    environment.addVariables(
-      Environment.Variable.newBuilder()
-        .setName("SPARK_EXECUTOR_OPTS")
-        .setValue(extraOpts)
-        .build())
-
     sc.executorEnvs.foreach { case (key, value) =>
       environment.addVariables(Environment.Variable.newBuilder()
         .setName(key)

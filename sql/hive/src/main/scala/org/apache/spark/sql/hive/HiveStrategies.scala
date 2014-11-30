@@ -220,8 +220,6 @@ private[hive] trait HiveStrategies {
 
       case hive.AnalyzeTable(tableName) => execution.AnalyzeTable(tableName) :: Nil
 
-      case AnalyzeTable(tableName) => execution.AnalyzeTable(tableName) :: Nil
-
       case describe: logical.DescribeCommand =>
         val resolvedTable = context.executePlan(describe.table).analyzed
         resolvedTable match {

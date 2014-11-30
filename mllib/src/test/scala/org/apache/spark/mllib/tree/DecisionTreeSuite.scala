@@ -65,7 +65,6 @@ class DecisionTreeSuite extends FunSuite with MLlibTestSparkContext {
     val (splits, bins) = DecisionTree.findSplitsBins(rdd, metadata)
     assert(!metadata.isUnordered(featureIndex = 0))
     assert(!metadata.isUnordered(featureIndex = 1))
-
     assert(splits.length === 2)
     assert(bins.length === 2)
     // no bins or splits pre-computed for ordered categorical features

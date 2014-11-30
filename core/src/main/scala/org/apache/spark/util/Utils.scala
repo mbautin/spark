@@ -24,8 +24,6 @@ import java.nio.ByteBuffer
 import java.util.concurrent.{ConcurrentHashMap, Executors, ThreadFactory, ThreadPoolExecutor}
 import java.util.{Locale, Properties, Random, UUID}
 
-import org.apache.log4j.PropertyConfigurator
-
 import scala.collection.JavaConversions._
 import scala.collection.Map
 import scala.collection.mutable.ArrayBuffer

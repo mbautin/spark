@@ -916,7 +916,6 @@ or system properties:
 
 Now you can use beeline to test the Thrift JDBC/ODBC server:
 
-
     ./bin/beeline
 
 Connect to the JDBC/ODBC server in beeline with:
@@ -928,10 +927,6 @@ your machine and a blank password. For secure mode, please follow the instructio
 [beeline documentation](https://cwiki.apache.org/confluence/display/Hive/HiveServer2+Clients).
 
 Configuration of Hive is done by placing your `hive-site.xml` file in `conf/`.
-You may run `./bin/spark-sql --help` for a complete list of all available
-options.
-
-# Compatibility with Other Systems
 
 You may also use the beeline script that comes with Hive.
 
@@ -1064,7 +1059,6 @@ in Hive deployments.
 
 **Major Hive Features**
 
-* Spark SQL does not currently support inserting to tables using dynamic partitioning.
 * Tables with buckets: bucket is the hash partitioning within a Hive table partition. Spark SQL
   doesn't support buckets yet.
 

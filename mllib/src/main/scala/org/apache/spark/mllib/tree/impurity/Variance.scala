@@ -60,8 +60,6 @@ object Variance extends Impurity {
    */
   def instance = this
 
-<<<<<<< HEAD
-=======
 }
 
 /**
@@ -134,5 +132,4 @@ private[tree] class VarianceCalculator(stats: Array[Double]) extends ImpurityCal
     s"VarianceAggregator(cnt = ${stats(0)}, sum = ${stats(1)}, sum2 = ${stats(2)})"
   }
 
->>>>>>> 1056e9ec13203d0c51564265e94d77a054498fdb
 }

@@ -820,40 +820,4 @@ private[spark] object ClientBase extends Logging {
     Objects.equal(srcHost, dstHost) && srcUri.getPort() == dstUri.getPort()
   }
 
-  /**
-   * Get the list of namenodes the user may access.
-   */
-  private[yarn] def getNameNodesToAccess(sparkConf: SparkConf): Set[Path] = {
-    sparkConf.get("spark.yarn.access.namenodes", "").split(",").map(_.trim()).filter(!_.isEmpty)
-      .map(new Path(_)).toSet
-  }
-
-  private[yarn] def getTokenRenewer(conf: Configuration): String = {
-    val delegTokenRenewer = Master.getMasterPrincipal(conf)
-    logDebug("delegation token renewer is: " + delegTokenRenewer)
-    if (delegTokenRenewer == null || delegTokenRenewer.length() == 0) {
-      val errorMessage = "Can't get Master Kerberos principal for use as renewer"
-      logError(errorMessage)
-      throw new SparkException(errorMessage)
-    }
-    delegTokenRenewer
-  }
-
-  /**
-   * Obtains tokens for the namenodes passed in and adds them to the credentials.
-   */
-  private[yarn] def obtainTokensForNamenodes(paths: Set[Path], conf: Configuration,
-    creds: Credentials) {
-    if (UserGroupInformation.isSecurityEnabled()) {
-      val delegTokenRenewer = getTokenRenewer(conf)
-
-      paths.foreach {
-        dst =>
-          val dstFs = dst.getFileSystem(conf)
-          logDebug("getting token for namenode: " + dst)
-          dstFs.addDelegationTokens(delegTokenRenewer, creds)
-      }
-    }
-  }
-
 }

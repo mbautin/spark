@@ -77,7 +77,6 @@ class SparkContextSuite extends FunSuite with LocalSparkContext {
 
   test("BytesWritable implicit conversion is correct") {
     // Regression test for SPARK-3121
->>>>>>> 1056e9ec13203d0c51564265e94d77a054498fdb
     val bytesWritable = new BytesWritable()
     val inputArray = (1 to 10).map(_.toByte).toArray
     bytesWritable.set(inputArray, 0, 10)

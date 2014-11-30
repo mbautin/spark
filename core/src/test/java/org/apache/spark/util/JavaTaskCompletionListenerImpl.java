@@ -15,18 +15,24 @@
  * limitations under the License.
  */
 
-package org.apache.spark.network.netty.server
+package org.apache.spark.util;
+
+import org.apache.spark.TaskContext;
+
 
 /**
- * Header describing a block. This is used only in the server pipeline.
- *
- * [[BlockServerHandler]] creates this, and [[BlockHeaderEncoder]] encodes it.
- *
- * @param blockSize length of the block content, excluding the length itself.
- *                 If positive, this is the header for a block (not part of the header).
- *                 If negative, this is the header and content for an error message.
- * @param blockId block id
- * @param error some error message from reading the block
+ * A simple implementation of TaskCompletionListener that makes sure TaskCompletionListener and
+ * TaskContext is Java friendly.
  */
-private[server]
-class BlockHeader(val blockSize: Int, val blockId: String, val error: Option[String] = None)
+public class JavaTaskCompletionListenerImpl implements TaskCompletionListener {
+
+  @Override
+  public void onTaskCompletion(TaskContext context) {
+    context.isCompleted();
+    context.isInterrupted();
+    context.stageId();
+    context.partitionId();
+    context.isRunningLocally();
+    context.addTaskCompletionListener(this);
+  }
+}

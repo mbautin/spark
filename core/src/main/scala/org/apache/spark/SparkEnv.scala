@@ -126,9 +126,6 @@ object SparkEnv extends Logging {
   private[spark] val driverActorSystemName = "sparkDriver"
   private[spark] val executorActorSystemName = "sparkExecutor"
 
-  private[spark] val driverActorSystemName = "sparkDriver"
-  private[spark] val executorActorSystemName = "sparkExecutor"
-
   def set(e: SparkEnv) {
     env = e
   }
@@ -198,9 +195,6 @@ object SparkEnv extends Logging {
     }
 
     val securityManager = new SecurityManager(conf)
-    val actorSystemName = if (isDriver) driverActorSystemName else executorActorSystemName
-    val (actorSystem, boundPort) = AkkaUtils.createActorSystem(
-      actorSystemName, hostname, port, conf, securityManager)
 
     // If an existing actor system is already provided, use it.
     // This is the case when an executor is launched in coarse-grained mode.

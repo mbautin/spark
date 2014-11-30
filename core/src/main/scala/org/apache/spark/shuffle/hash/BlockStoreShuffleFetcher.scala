@@ -32,8 +32,7 @@ private[hash] object BlockStoreShuffleFetcher extends Logging {
       shuffleId: Int,
       reduceId: Int,
       context: TaskContext,
-      serializer: Serializer,
-      shuffleMetrics: ShuffleReadMetrics)
+      serializer: Serializer)
     : Iterator[T] =
   {
     logDebug("Fetching outputs for shuffle %d, reduce %d".format(shuffleId, reduceId))

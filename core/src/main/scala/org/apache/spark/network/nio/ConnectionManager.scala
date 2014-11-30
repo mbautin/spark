@@ -863,26 +863,8 @@ private[nio] class ConnectionManager(
       try {
         checkSendAuthFirst(connectionManagerId, connection)
       } catch {
-<<<<<<< HEAD:core/src/main/scala/org/apache/spark/network/ConnectionManager.scala
-        case e: Exception => logError("Exception while waiting for authentication.", e)
-
-        // need to tell sender it failed
-        messageStatuses.synchronized {
-          val s = messageStatuses.get(message.id)
-          s match {
-            case Some(msgStatus) => {
-              messageStatuses -= message.id
-              logInfo("Notifying " + msgStatus.connectionManagerId)
-              msgStatus.markDone(None)
-            }
-            case None => {
-              logError("no messageStatus for failed message id: " + message.id)
-            }
-          }
-=======
         case NonFatal(e) => {
           reportSendingMessageFailure(message.id, e)
->>>>>>> 1056e9ec13203d0c51564265e94d77a054498fdb:core/src/main/scala/org/apache/spark/network/nio/ConnectionManager.scala
         }
       }
     }
@@ -913,11 +895,7 @@ private[nio] class ConnectionManager(
   }
 
   /**
-<<<<<<< HEAD:core/src/main/scala/org/apache/spark/network/ConnectionManager.scala
-   * Send a message and block until an acknowldgment is received or an error occurs.
-=======
    * Send a message and block until an acknowledgment is received or an error occurs.
->>>>>>> 1056e9ec13203d0c51564265e94d77a054498fdb:core/src/main/scala/org/apache/spark/network/nio/ConnectionManager.scala
    * @param connectionManagerId the message's destination
    * @param message the message being sent
    * @return a Future that either returns the acknowledgment message or captures an exception.
@@ -938,11 +916,7 @@ private[nio] class ConnectionManager(
         messageStatuses.synchronized {
           messageStatuses.remove(messageId).foreach { s =>
             val e = new IOException("sendMessageReliably failed because ack " +
-<<<<<<< HEAD:core/src/main/scala/org/apache/spark/network/ConnectionManager.scala
-               s"was not received within $ackTimeout sec")
-=======
               s"was not received within $ackTimeout sec")
->>>>>>> 1056e9ec13203d0c51564265e94d77a054498fdb:core/src/main/scala/org/apache/spark/network/nio/ConnectionManager.scala
             val p = promiseReference.get
             if (p != null) {
               // Attempt to fail the promise with a Timeout exception
@@ -965,17 +939,6 @@ private[nio] class ConnectionManager(
 
     val status = new MessageStatus(message, connectionManagerId, s => {
       timeoutTaskHandle.cancel()
-<<<<<<< HEAD:core/src/main/scala/org/apache/spark/network/ConnectionManager.scala
-      s.ackMessage match {
-        case None => // Indicates a failure where we either never sent or never got ACK'd
-          promise.failure(new IOException("sendMessageReliably failed without being ACK'd"))
-        case Some(ackMessage) =>
-          if (ackMessage.hasError) {
-            promise.failure(
-              new IOException("sendMessageReliably failed with ACK that signalled a remote error"))
-          } else {
-            promise.success(ackMessage)
-=======
       s match {
         case scala.util.Failure(e) =>
           // Indicates a failure where we either never sent or never got ACK'd
@@ -997,7 +960,6 @@ private[nio] class ConnectionManager(
             if (!promise.trySuccess(ackMessage)) {
               logWarning("Drop ackMessage because promise is completed")
             }
->>>>>>> 1056e9ec13203d0c51564265e94d77a054498fdb:core/src/main/scala/org/apache/spark/network/nio/ConnectionManager.scala
           }
       }
     })
@@ -1032,11 +994,7 @@ private[nio] class ConnectionManager(
 
 
 private[spark] object ConnectionManager {
-<<<<<<< HEAD:core/src/main/scala/org/apache/spark/network/ConnectionManager.scala
-  import ExecutionContext.Implicits.global
-=======
   import scala.concurrent.ExecutionContext.Implicits.global
->>>>>>> 1056e9ec13203d0c51564265e94d77a054498fdb:core/src/main/scala/org/apache/spark/network/nio/ConnectionManager.scala
 
   def main(args: Array[String]) {
     val conf = new SparkConf

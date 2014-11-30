@@ -24,8 +24,6 @@ import org.apache.spark.storage.{StorageLevel, RDDBlockId}
 
 case class BigData(s: String)
 
-case class BigData(s: String)
-
 class CachedTableSuite extends QueryTest {
   TestData // Load test tables.
 

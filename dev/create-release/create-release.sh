@@ -48,12 +48,6 @@ if [ -z "$JAVA_HOME" ]; then
 fi
 JAVA_7_HOME=${JAVA_7_HOME:-$JAVA_HOME}
 
-if [ -z "$JAVA_HOME" ]; then
-  echo "Error: JAVA_HOME is not set, cannot proceed."
-  exit -1
-fi
-JAVA_7_HOME=${JAVA_7_HOME:-$JAVA_HOME}
-
 set -e
 
 GIT_TAG=v$RELEASE_VERSION-$RC_NAME

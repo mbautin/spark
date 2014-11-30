@@ -26,7 +26,6 @@ import org.apache.spark.deploy.SparkSubmit._
 import org.apache.spark.util.Utils
 import org.scalatest.FunSuite
 import org.scalatest.Matchers
-import com.google.common.io.Files
 
 class SparkSubmitSuite extends FunSuite with Matchers {
   def beforeAll() {

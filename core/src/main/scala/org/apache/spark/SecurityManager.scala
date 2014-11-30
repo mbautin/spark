@@ -318,22 +318,6 @@ private[spark] class SecurityManager(sparkConf: SparkConf) extends Logging with 
 
 
   /**
-   * Checks the given user against the modify acl list to see if they have
-   * authorization to modify the application. If the UI acls are disabled
-   * via spark.acls.enable, all users have modify access. If the user is null
-   * it is assumed authentication isn't turned on and all users have access.
-   *
-   * @param user to see if is authorized
-   * @return true is the user has permission, otherwise false
-   */
-  def checkModifyPermissions(user: String): Boolean = {
-    logDebug("user=" + user + " aclsEnabled=" + aclsEnabled() + " modifyAcls=" +
-      modifyAcls.mkString(","))
-    if (aclsEnabled() && (user != null) && (!modifyAcls.contains(user))) false else true
-  }
-
-
-  /**
    * Check to see if authentication for the Spark communication protocols is enabled
    * @return true if authentication is enabled, otherwise false
    */

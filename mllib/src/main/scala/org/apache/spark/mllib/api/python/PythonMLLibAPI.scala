@@ -27,8 +27,6 @@ import scala.reflect.ClassTag
 
 import net.razorvine.pickle._
 
-import scala.collection.JavaConverters._
-
 import org.apache.spark.annotation.DeveloperApi
 import org.apache.spark.api.java.{JavaRDD, JavaSparkContext}
 import org.apache.spark.api.python.SerDeUtil
@@ -536,76 +534,6 @@ class PythonMLLibAPI extends Serializable {
    */
   def colStats(rdd: JavaRDD[Vector]): MultivariateStatisticalSummary = {
     Statistics.colStats(rdd.rdd)
-  }
-
-  /**
-   * Java stub for Python mllib DecisionTree.train().
-   * This stub returns a handle to the Java object instead of the content of the Java object.
-   * Extra care needs to be taken in the Python code to ensure it gets freed on exit;
-   * see the Py4J documentation.
-   * @param dataBytesJRDD  Training data
-   * @param categoricalFeaturesInfoJMap  Categorical features info, as Java map
-   */
-  def trainDecisionTreeModel(
-      dataBytesJRDD: JavaRDD[Array[Byte]],
-      algoStr: String,
-      numClasses: Int,
-      categoricalFeaturesInfoJMap: java.util.Map[Int, Int],
-      impurityStr: String,
-      maxDepth: Int,
-      maxBins: Int): DecisionTreeModel = {
-
-    val data = dataBytesJRDD.rdd.map(SerDe.deserializeLabeledPoint)
-
-    val algo = Algo.fromString(algoStr)
-    val impurity = Impurities.fromString(impurityStr)
-
-    val strategy = new Strategy(
-      algo = algo,
-      impurity = impurity,
-      maxDepth = maxDepth,
-      numClassesForClassification = numClasses,
-      maxBins = maxBins,
-      categoricalFeaturesInfo = categoricalFeaturesInfoJMap.asScala.toMap)
-
-    DecisionTree.train(data, strategy)
-  }
-
-  /**
-   * Predict the label of the given data point.
-   * This is a Java stub for python DecisionTreeModel.predict()
-   *
-   * @param featuresBytes Serialized feature vector for data point
-   * @return predicted label
-   */
-  def predictDecisionTreeModel(
-      model: DecisionTreeModel,
-      featuresBytes: Array[Byte]): Double = {
-    val features: Vector = SerDe.deserializeDoubleVector(featuresBytes)
-    model.predict(features)
-  }
-
-  /**
-   * Predict the labels of the given data points.
-   * This is a Java stub for python DecisionTreeModel.predict()
-   *
-   * @param dataJRDD A JavaRDD with serialized feature vectors
-   * @return JavaRDD of serialized predictions
-   */
-  def predictDecisionTreeModel(
-      model: DecisionTreeModel,
-      dataJRDD: JavaRDD[Array[Byte]]): JavaRDD[Array[Byte]] = {
-    val data = dataJRDD.rdd.map(xBytes => SerDe.deserializeDoubleVector(xBytes))
-    model.predict(data).map(SerDe.serializeDouble)
-  }
-
-  /**
-   * Java stub for mllib Statistics.colStats(X: RDD[Vector]).
-   * TODO figure out return type.
-   */
-  def colStats(X: JavaRDD[Array[Byte]]): MultivariateStatisticalSummarySerialized = {
-    val cStats = Statistics.colStats(X.rdd.map(SerDe.deserializeDoubleVector(_)))
-    new MultivariateStatisticalSummarySerialized(cStats)
   }
 
   /**

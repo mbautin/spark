@@ -1427,13 +1427,6 @@ class RDD(object):
 
     def fullOuterJoin(self, other, numPartitions=None):
         """
-<<<<<<< HEAD
-        Perform a full outer join of C{self} and C{other}.
-
-        Output will have each row from both RDDs or None where missing, i.e.
-        one of (k, (v, w)), (k, (v, None)), or (k, (None, w)) depending on
-        the presence of (k, v) and/or (k, w) in C{self} and C{other}
-=======
         Perform a right outer join of C{self} and C{other}.
 
         For each element (k, v) in C{self}, the resulting RDD will either
@@ -1443,20 +1436,13 @@ class RDD(object):
         Similarly, for each element (k, w) in C{other}, the resulting RDD will
         either contain all pairs (k, (v, w)) for v in C{self}, or the pair
         (k, (None, w)) if no elements in C{self} have key k.
->>>>>>> 1056e9ec13203d0c51564265e94d77a054498fdb
 
         Hash-partitions the resulting RDD into the given number of partitions.
 
         >>> x = sc.parallelize([("a", 1), ("b", 4)])
-<<<<<<< HEAD
-        >>> y = sc.parallelize([("a", 2), ("c", 3)])
-        >>> sorted(y.fullOuterJoin(x).collect())
-        [('a', (2, 1)), ('b', (None, 4)), ('c', (3, None))]
-=======
         >>> y = sc.parallelize([("a", 2), ("c", 8)])
         >>> sorted(x.fullOuterJoin(y).collect())
         [('a', (1, 2)), ('b', (4, None)), ('c', (None, 8))]
->>>>>>> 1056e9ec13203d0c51564265e94d77a054498fdb
         """
         return python_full_outer_join(self, other, numPartitions)
 
@@ -1809,20 +1795,10 @@ class RDD(object):
         >>> x.zip(y).collect()
         [(0, 1000), (1, 1001), (2, 1002), (3, 1003), (4, 1004)]
         """
-<<<<<<< HEAD
-        if self.getNumPartitions() != other.getNumPartitions():
-            raise ValueError("Can only zip with RDD which has the same number of partitions")
-
-        def get_batch_size(ser):
-            if isinstance(ser, BatchedSerializer):
-                return ser.batchSize
-            return 0
-=======
         def get_batch_size(ser):
             if isinstance(ser, BatchedSerializer):
                 return ser.batchSize
             return 1
->>>>>>> 1056e9ec13203d0c51564265e94d77a054498fdb
 
         def batch_as(rdd, batchSize):
             ser = rdd._jrdd_deserializer
@@ -1832,14 +1808,6 @@ class RDD(object):
 
         my_batch = get_batch_size(self._jrdd_deserializer)
         other_batch = get_batch_size(other._jrdd_deserializer)
-<<<<<<< HEAD
-        if my_batch != other_batch:
-            # use the greatest batchSize to batch the other one.
-            if my_batch > other_batch:
-                other = batch_as(other, my_batch)
-            else:
-                self = batch_as(self, other_batch)
-=======
         # use the smallest batchSize for both of them
         batchSize = min(my_batch, other_batch)
         if batchSize <= 0:
@@ -1850,7 +1818,6 @@ class RDD(object):
 
         if self.getNumPartitions() != other.getNumPartitions():
             raise ValueError("Can only zip with RDD which has the same number of partitions")
->>>>>>> 1056e9ec13203d0c51564265e94d77a054498fdb
 
         # There will be an Exception in JVM if there are different number
         # of items in each partitions.
@@ -2135,17 +2102,12 @@ class PipelinedRDD(RDD):
         profileStats = self.ctx.accumulator(None, PStatsParam) if enable_profile else None
         command = (self.func, profileStats, self._prev_jrdd_deserializer,
                    self._jrdd_deserializer)
-<<<<<<< HEAD
-        ser = CloudPickleSerializer()
-        pickled_command = ser.dumps(command)
-=======
         # the serialized command will be compressed by broadcast
         ser = CloudPickleSerializer()
         pickled_command = ser.dumps(command)
         if len(pickled_command) > (1 << 20):  # 1M
             self._broadcast = self.ctx.broadcast(pickled_command)
             pickled_command = ser.dumps(self._broadcast)
->>>>>>> 1056e9ec13203d0c51564265e94d77a054498fdb
         broadcast_vars = ListConverter().convert(
             [x._jbroadcast for x in self.ctx._pickled_broadcast_vars],
             self.ctx._gateway._gateway_client)

@@ -25,7 +25,6 @@ import org.apache.spark.SparkContext
 import org.apache.spark.serializer.KryoSerializer
 import org.apache.spark.shuffle.hash.HashShuffleManager
 import org.apache.spark.util.Utils
-import org.apache.spark.executor.ShuffleWriteMetrics
 
 /**
  * Internal utility for micro-benchmarking shuffle write performance.

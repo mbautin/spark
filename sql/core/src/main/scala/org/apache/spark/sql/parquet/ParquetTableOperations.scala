@@ -600,17 +600,6 @@ private[parquet] object FilteringParquetRowInputFormat {
     .build[FileStatus, Array[BlockLocation]]()
 }
 
-private[parquet] object FilteringParquetRowInputFormat {
-  private val footerCache = CacheBuilder.newBuilder()
-    .maximumSize(20000)
-    .build[FileStatus, Footer]()
-
-  private val blockLocationCache = CacheBuilder.newBuilder()
-    .maximumSize(20000)
-    .expireAfterWrite(15, TimeUnit.MINUTES)  // Expire locations since HDFS files might move
-    .build[FileStatus, Array[BlockLocation]]()
-}
-
 private[parquet] object FileSystemHelper {
   def listFiles(pathStr: String, conf: Configuration): Seq[Path] = {
     val origPath = new Path(pathStr)

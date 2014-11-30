@@ -100,7 +100,7 @@ private[ui] class StageTableBase(
           Text("RDD: ") ++
           // scalastyle:off
           cachedRddInfos.map { i =>
-            <a href={"%s/storage/rdd?id=%d".format(UIUtils.prependBaseUri(parent.basePath), i.id)}>{i.name}</a>
+            <a href={"%s/storage/rdd?id=%d".format(UIUtils.prependBaseUri(basePath), i.id)}>{i.name}</a>
           }
           // scalastyle:on
         }}
@@ -152,7 +152,7 @@ private[ui] class StageTableBase(
     {if (isFairScheduler) {
       <td>
         <a href={"%s/stages/pool?poolname=%s"
-          .format(UIUtils.prependBaseUri(parent.basePath), stageData.schedulingPool)}>
+          .format(UIUtils.prependBaseUri(basePath), stageData.schedulingPool)}>
           {stageData.schedulingPool}
         </a>
       </td>

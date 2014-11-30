@@ -92,14 +92,6 @@ building for particular Hive and Hive Thriftserver distributions. See also
 for guidance on building a Spark application that works with a particular
 distribution.
 
-## A Note About Thrift JDBC server and CLI for Spark SQL
-
-Spark SQL supports Thrift JDBC server and CLI.
-See sql-programming-guide.md for more information about using the JDBC server and CLI.
-You can use those features by setting `-Phive` when building Spark as follows.
-
-    $ sbt/sbt -Phive  assembly
-
 ## Configuration
 
 Please refer to the [Configuration guide](http://spark.apache.org/docs/latest/configuration.html)

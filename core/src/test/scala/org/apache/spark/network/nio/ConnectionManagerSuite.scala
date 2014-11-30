@@ -19,12 +19,10 @@ package org.apache.spark.network.nio
 
 import java.io.IOException
 import java.nio._
-import java.util.concurrent.TimeoutException
 
 import scala.concurrent.duration._
 import scala.concurrent.{Await, TimeoutException}
 import scala.language.postfixOps
-import scala.util.{Failure, Success, Try}
 
 import org.scalatest.FunSuite
 

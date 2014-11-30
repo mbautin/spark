@@ -22,7 +22,7 @@ import java.sql.{Date, Timestamp}
 
 import scala.collection.JavaConversions._
 import scala.language.implicitConversions
-import scala.reflect.runtime.universe.{TypeTag, typeTag}
+import scala.reflect.runtime.universe.TypeTag
 
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.hadoop.hive.conf.HiveConf
@@ -257,11 +257,6 @@ class HiveContext(sc: SparkContext) extends SQLContext(sc) {
   override protected[sql] lazy val functionRegistry =
     new HiveFunctionRegistry with OverrideFunctionRegistry
 
-  // Note that HiveUDFs will be overridden by functions registered in this context.
-  @transient
-  override protected[sql] lazy val functionRegistry =
-    new HiveFunctionRegistry with OverrideFunctionRegistry
-
   /* An analyzer that uses the Hive metastore. */
   @transient
   override protected[sql] lazy val analyzer =
@@ -295,14 +290,6 @@ class HiveContext(sc: SparkContext) extends SQLContext(sc) {
       val tokens: Array[String] = cmd_trimmed.split("\\s+")
       val cmd_1: String = cmd_trimmed.substring(tokens(0).length()).trim()
       val proc: CommandProcessor = HiveShim.getCommandProcessor(Array(tokens(0)), hiveconf)
-
-      // Makes sure the session represented by the `sessionState` field is activated. This implies
-      // Spark SQL Hive support uses a single `SessionState` for all Hive operations and breaks
-      // session isolation under multi-user scenarios (i.e. HiveThriftServer2).
-      // TODO Fix session isolation
-      if (SessionState.get() != sessionState) {
-        SessionState.start(sessionState)
-      }
 
       // Makes sure the session represented by the `sessionState` field is activated. This implies
       // Spark SQL Hive support uses a single `SessionState` for all Hive operations and breaks

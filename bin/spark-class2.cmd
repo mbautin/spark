@@ -95,8 +95,6 @@ if "%jversion%" geq "1.8.0" (
   set JAVA_OPTS=-XX:MaxPermSize=128m %OUR_JAVA_OPTS% -Xms%OUR_JAVA_MEM% -Xmx%OUR_JAVA_MEM%
 )
 rem Attention: when changing the way the JAVA_OPTS are assembled, the change must be reflected in CommandUtils.scala!
-rem Set JAVA_OPTS to be able to load native libraries and to set heap size
-set JAVA_OPTS=-XX:MaxPermSize=128m %OUR_JAVA_OPTS% -Xms%OUR_JAVA_MEM% -Xmx%OUR_JAVA_MEM%
 
 rem Test whether the user has built Spark
 if exist "%FWDIR%RELEASE" goto skip_build_test

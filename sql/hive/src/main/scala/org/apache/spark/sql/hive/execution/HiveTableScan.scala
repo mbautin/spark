@@ -92,10 +92,6 @@ case class HiveTableScan(
     val deserializer = tableDesc.getDeserializerClass.newInstance
     deserializer.initialize(hiveConf, tableDesc.getProperties)
 
-    val tableDesc = relation.tableDesc
-    val deserializer = tableDesc.getDeserializerClass.newInstance
-    deserializer.initialize(hiveConf, tableDesc.getProperties)
-
     // Specifies types and object inspectors of columns to be scanned.
     val structOI = ObjectInspectorUtils
       .getStandardObjectInspector(

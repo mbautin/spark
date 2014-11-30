@@ -18,7 +18,6 @@
 package org.apache.spark.mllib.tree.configuration
 
 import scala.beans.BeanProperty
-
 import scala.collection.JavaConverters._
 
 import org.apache.spark.annotation.Experimental

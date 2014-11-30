@@ -43,7 +43,6 @@ import org.apache.spark.shuffle.ShuffleManager
 import org.apache.spark.shuffle.hash.HashShuffleManager
 import org.apache.spark.util._
 
-
 private[spark] sealed trait BlockValues
 private[spark] case class ByteBufferValues(buffer: ByteBuffer) extends BlockValues
 private[spark] case class IteratorValues(iterator: Iterator[Any]) extends BlockValues
@@ -294,20 +293,6 @@ private[spark] class BlockManager(
     val task = asyncReregisterTask
     if (task != null) {
       Await.ready(task, Duration.Inf)
-    }
-  }
-
-  override def getBlockData(blockId: String): Either[FileSegment, ByteBuffer] = {
-    val bid = BlockId(blockId)
-    if (bid.isShuffle) {
-      Left(diskBlockManager.getBlockLocation(bid))
-    } else {
-      val blockBytesOpt = doGetLocal(bid, asBlockResult = false).asInstanceOf[Option[ByteBuffer]]
-      if (blockBytesOpt.isDefined) {
-        Right(blockBytesOpt.get)
-      } else {
-        throw new BlockNotFoundException(blockId)
-      }
     }
   }
 
@@ -1220,14 +1205,6 @@ private[spark] class BlockManager(
       shuffleClient.close()
     }
     diskBlockManager.stop()
-
-    if (nettyBlockClientFactory != null) {
-      nettyBlockClientFactory.stop()
-    }
-    if (nettyBlockServer != null) {
-      nettyBlockServer.stop()
-    }
-
     actorSystem.stop(slaveActor)
     blockInfo.clear()
     memoryStore.clear()

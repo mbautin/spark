@@ -30,9 +30,6 @@ sbin="`cd "$sbin"; pwd`"
 . "$sbin/spark-config.sh"
 . "$SPARK_PREFIX/bin/load-spark-env.sh"
 
-. "$sbin/spark-config.sh"
-. "$SPARK_PREFIX/bin/load-spark-env.sh"
-
 if [ $# != 0 ]; then
   echo "Using command line arguments for setting the log directory is deprecated. Please "
   echo "set the spark.history.fs.logDirectory configuration option instead."

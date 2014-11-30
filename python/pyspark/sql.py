@@ -964,7 +964,7 @@ _acceptable_types = {
     ByteType: (int, long),
     ShortType: (int, long),
     IntegerType: (int, long),
-    LongType: (long,),
+    LongType: (int, long),
     FloatType: (float,),
     DoubleType: (float,),
     DecimalType: (decimal.Decimal,),

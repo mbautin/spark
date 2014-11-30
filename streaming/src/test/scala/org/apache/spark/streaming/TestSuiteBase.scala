@@ -24,7 +24,6 @@ import scala.collection.mutable.SynchronizedBuffer
 import scala.reflect.ClassTag
 
 import org.scalatest.{BeforeAndAfter, FunSuite}
-import com.google.common.io.Files
 
 import org.apache.spark.streaming.dstream.{DStream, InputDStream, ForEachDStream}
 import org.apache.spark.streaming.util.ManualClock

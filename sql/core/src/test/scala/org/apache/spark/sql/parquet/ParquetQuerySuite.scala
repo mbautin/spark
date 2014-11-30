@@ -505,29 +505,6 @@ class ParquetQuerySuite extends QueryTest with FunSuiteLike with BeforeAndAfterA
         assert(result2(49)(1) === 199)
       }
     }
-    for(myval <- Seq("myint", "mylong", "mydouble", "myfloat")) {
-      val query1 = sql(s"SELECT * FROM testfiltersource WHERE 150 > $myval AND 100 <= $myval")
-      assert(
-        query1.queryExecution.executedPlan(0)(0).isInstanceOf[ParquetTableScan],
-        "Top operator should be ParquetTableScan after pushdown")
-      val result1 = query1.collect()
-      assert(result1.size === 50)
-      assert(result1(0)(1) === 100)
-      assert(result1(49)(1) === 149)
-      val query2 = sql(s"SELECT * FROM testfiltersource WHERE 150 < $myval AND 200 >= $myval")
-      assert(
-        query2.queryExecution.executedPlan(0)(0).isInstanceOf[ParquetTableScan],
-        "Top operator should be ParquetTableScan after pushdown")
-      val result2 = query2.collect()
-      assert(result2.size === 50)
-      if (myval == "myint" || myval == "mylong") {
-        assert(result2(0)(1) === 151)
-        assert(result2(49)(1) === 200)
-      } else {
-        assert(result2(0)(1) === 150)
-        assert(result2(49)(1) === 199)
-      }
-    }
     for(myval <- Seq("myint", "mylong")) {
       val query3 = sql(s"SELECT * FROM testfiltersource WHERE $myval > 190 OR $myval < 10")
       assert(

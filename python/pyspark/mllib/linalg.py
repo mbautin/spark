@@ -482,15 +482,6 @@ class SparseVector(Vector):
     def __len__(self):
         return self.size
 
-    def toArray(self):
-        """
-        Returns a copy of this SparseVector as a 1-dimensional NumPy array.
-        """
-        arr = numpy.zeros(self.size)
-        for i in xrange(self.indices.size):
-            arr[self.indices[i]] = self.values[i]
-        return arr
-
     def __str__(self):
         inds = "[" + ",".join([str(i) for i in self.indices]) + "]"
         vals = "[" + ",".join([str(v) for v in self.values]) + "]"

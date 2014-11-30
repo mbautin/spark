@@ -25,7 +25,6 @@ import scala.collection.mutable.ArrayBuffer
 import org.apache.spark.annotation.Experimental
 import org.apache.spark.api.java.JavaRDD
 import org.apache.spark.Logging
-import org.apache.spark.mllib.rdd.RDDFunctions._
 import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.mllib.tree.RandomForest.NodeIndexInfo
 import org.apache.spark.mllib.tree.configuration.Strategy
@@ -37,10 +36,8 @@ import org.apache.spark.mllib.tree.impurity.{Impurities, Impurity}
 import org.apache.spark.mllib.tree.impurity._
 import org.apache.spark.mllib.tree.model._
 import org.apache.spark.rdd.RDD
-import org.apache.spark.storage.StorageLevel
 import org.apache.spark.util.random.XORShiftRandom
 import org.apache.spark.SparkContext._
-
 
 
 /**
@@ -545,13 +542,9 @@ object DecisionTree extends Serializable with Logging {
           bins, metadata.unorderedFeatures)
         nodeBinSeqOp(treeIndex, nodeIndexToInfo.getOrElse(nodeIndex, null), agg, baggedPoint)
       }
-    }
 
       agg
     }
-
-    // Used for treePointToNodeIndex
-    val levelOffset = (1 << level) - 1
 
     /**
      * Do the same thing as binSeqOp, but with nodeIdCache.
@@ -703,7 +696,6 @@ object DecisionTree extends Serializable with Logging {
               nodeIndex = nodeIndex)
             nodeIdUpdaters(treeIndex).put(nodeIndex, nodeIndexUpdater)
           }
-        }
 
           // enqueue left child and right child if they are not leaves
           if (!leftChildIsLeaf) {
