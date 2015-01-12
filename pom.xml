@@ -1436,6 +1436,14 @@
       </properties>
     </profile>
     <profile>
+      <id>hive-0.12.0-csd</id>
+      <properties>
+        <hive.version>0.12.0-csd-1</hive.version>
+        <hive.version.short>0.12.0</hive.version.short>
+        <derby.version>10.4.2.0</derby.version>
+      </properties>
+    </profile>
+    <profile>
       <id>hive-0.13.1</id>
       <properties>
         <hive.version>0.13.1a</hive.version>
