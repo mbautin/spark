@@ -26,7 +26,7 @@
   </parent>
   <groupId>org.apache.spark</groupId>
   <artifactId>spark-parent</artifactId>
-  <version>1.2.0-csd-1-SNAPSHOT</version>
+  <version>1.2.1-csd-1-SNAPSHOT</version>
   <packaging>pom</packaging>
   <name>Spark Project Parent POM</name>
   <url>http://spark.apache.org/</url>
@@ -119,10 +119,10 @@
     <mesos.classifier>shaded-protobuf</mesos.classifier>
     <slf4j.version>1.7.5</slf4j.version>
     <log4j.version>1.2.17</log4j.version>
-    <cdh.version>4.1.2</cdh.version>
+    <cdh.version>5.3.0</cdh.version>
     <hadoop.dist.suffix>cdh${cdh.version}</hadoop.dist.suffix>
-    <hadoop.version>2.0.0-mr1-${hadoop.dist.suffix}</hadoop.version>
-    <protobuf.version>2.4.1</protobuf.version>
+    <hadoop.version>2.5.0-cdh5.3.0</hadoop.version>
+    <protobuf.version>2.5.0</protobuf.version>
     <yarn.version>${hadoop.version}</yarn.version>
     <hbase.version>0.94.5-csd-30</hbase.version>
     <flume.version>1.4.0</flume.version>
