@@ -157,7 +157,7 @@
         <exclusions>
           <exclusion>
             <groupId>org.apache.hadoop</groupId>
-            <artifactId>hadoop-core</artifactId>
+            <artifactId>hadoop-common</artifactId>
           </exclusion>
           <exclusion>
             <groupId>org.apache.hadoop</groupId>
@@ -401,7 +401,7 @@
         </property>
       </activation>
       <properties>
-        <hbase.version>0.98.7-hadoop2</hbase.version>
+        <hbase.version>0.98.9-hadoop2</hbase.version>
       </properties>
     </profile>
     <profile>
