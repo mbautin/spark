@@ -116,9 +116,9 @@
     <scala.macros.version>2.0.1</scala.macros.version>
     <mesos.version>0.18.1</mesos.version>
     <mesos.classifier>shaded-protobuf</mesos.classifier>
-    <cdh.version>5.3.0</cdh.version>
+    <cdh.version>5.3.2</cdh.version>
     <hadoop.dist.suffix>cdh${cdh.version}</hadoop.dist.suffix>
-    <hadoop.version>2.5.0-cdh5.3.0</hadoop.version>
+    <hadoop.version>2.5.0-${hadoop.dist.suffix}</hadoop.version>
     <akka.group>org.spark-project.akka</akka.group>
     <akka.version>2.2.3-shaded-protobuf</akka.version>
     <slf4j.version>1.7.5</slf4j.version>
