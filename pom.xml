@@ -120,7 +120,7 @@
     <log4j.version>1.2.17</log4j.version>
     <cdh.version>5.3.2</cdh.version>
     <hadoop.dist.suffix>cdh${cdh.version}</hadoop.dist.suffix>
-    <hadoop.version>2.5.0-cdh5.3.0</hadoop.version>
+    <hadoop.version>2.5.0-${hadoop.dist.suffix}</hadoop.version>
     <protobuf.version>2.5.0</protobuf.version>
     <yarn.version>${hadoop.version}</yarn.version>
     <hbase.version>0.98.9-hadoop2</hbase.version>
