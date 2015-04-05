@@ -20,7 +20,11 @@
   <parent>
     <groupId>org.apache.spark</groupId>
     <artifactId>yarn-parent_2.10</artifactId>
+<<<<<<< HEAD
     <version>1.2.1-csd-1-SNAPSHOT</version>
+=======
+    <version>1.2.2</version>
+>>>>>>> 7531b50... Preparing Spark release v1.2.2-rc1
     <relativePath>../pom.xml</relativePath>
   </parent>
   <properties>
