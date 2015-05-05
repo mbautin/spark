@@ -738,7 +738,7 @@ class DAGScheduler(
       clearCacheLocs()
       val jobGroupSuffix = for {
         properties <- Option(job.properties)
-        jobGroup <- Option(properties.get(SparkContext.SPARK_JOB_GROUP_ID)).map(_.toString)
+        jobGroup <- Option(properties.getProperty(SparkContext.SPARK_JOB_GROUP_ID))
       } yield s"($jobGroup)"
       logInfo(
         "Got job %s (%s) with %d output partitions (allowLocal=%s)"
