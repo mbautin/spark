@@ -17,15 +17,14 @@
 
 package org.apache.spark.sql.hive.execution
 
+import org.apache.spark.sql.catalyst.DefaultParserDialect
 import org.apache.spark.sql.catalyst.analysis.EliminateSubQueries
 import org.apache.spark.sql.catalyst.errors.DialectException
-import org.apache.spark.sql.DefaultParserDialect
 import org.apache.spark.sql.{AnalysisException, QueryTest, Row, SQLConf}
-import org.apache.spark.sql.hive.MetastoreRelation
 import org.apache.spark.sql.hive.test.TestHive
 import org.apache.spark.sql.hive.test.TestHive._
 import org.apache.spark.sql.hive.test.TestHive.implicits._
-import org.apache.spark.sql.hive.{HiveQLDialect, HiveShim}
+import org.apache.spark.sql.hive.{HiveQLDialect, HiveShim, MetastoreRelation}
 import org.apache.spark.sql.parquet.ParquetRelation2
 import org.apache.spark.sql.sources.LogicalRelation
 import org.apache.spark.sql.types._
@@ -596,7 +595,7 @@ class SQLQuerySuite extends QueryTest {
       sql(s"DROP TABLE $tableName")
     }
   }
-  
+
   test("SPARK-5203 union with different decimal precision") {
     Seq.empty[(Decimal, Decimal)]
       .toDF("d1", "d2")
@@ -763,5 +762,15 @@ class SQLQuerySuite extends QueryTest {
     checkAnswer(
       sql("SELECT CASE k WHEN 2 THEN 22 WHEN 4 THEN 44 ELSE 0 END, v FROM t"),
       Row(0, "1") :: Row(22, "2") :: Row(0, "3") :: Row(44, "4") :: Row(0, "5") :: Nil)
+  }
+
+  test("SPARK-7595: Window will cause resolve failed with self join") {
+    checkAnswer(sql(
+      """
+        |with
+        | v1 as (select key, count(value) over (partition by key) cnt_val from src),
+        | v2 as (select v1.key, v1_lag.cnt_val from v1, v1 v1_lag where v1.key = v1_lag.key)
+        | select * from v2 order by key limit 1
+      """.stripMargin), Row(0, 3))
   }
 }
