@@ -21,21 +21,18 @@ import java.io.File
 
 import scala.collection.mutable.ArrayBuffer
 
+import org.apache.hadoop.fs.Path
+import org.apache.hadoop.mapred.InvalidInputException
 import org.scalatest.BeforeAndAfterEach
 
-import org.apache.hadoop.fs.Path
-import org.apache.hadoop.hive.metastore.TableType
-import org.apache.hadoop.hive.ql.metadata.Table
-import org.apache.hadoop.mapred.InvalidInputException
-
 import org.apache.spark.sql._
-import org.apache.spark.util.Utils
-import org.apache.spark.sql.types._
 import org.apache.spark.sql.hive.client.{HiveTable, ManagedTable}
 import org.apache.spark.sql.hive.test.TestHive._
 import org.apache.spark.sql.hive.test.TestHive.implicits._
 import org.apache.spark.sql.parquet.ParquetRelation2
 import org.apache.spark.sql.sources.LogicalRelation
+import org.apache.spark.sql.types._
+import org.apache.spark.util.Utils
 
 /**
  * Tests for persisting tables created though the data sources API into the metastore.
@@ -63,7 +60,7 @@ class MetastoreDataSourcesSuite extends QueryTest with BeforeAndAfterEach {
 
     checkAnswer(
       sql("SELECT * FROM jsonTable"),
-      jsonFile(filePath).collect().toSeq)
+      read.json(filePath).collect().toSeq)
   }
 
   test ("persistent JSON table with a user specified schema") {
@@ -80,7 +77,7 @@ class MetastoreDataSourcesSuite extends QueryTest with BeforeAndAfterEach {
         |)
       """.stripMargin)
 
-    jsonFile(filePath).registerTempTable("expectedJsonTable")
+    read.json(filePath).registerTempTable("expectedJsonTable")
 
     checkAnswer(
       sql("SELECT a, b, `c_!@(3)`, `<d>`.`d!`, `<d>`.`=` FROM jsonTable"),
@@ -107,7 +104,7 @@ class MetastoreDataSourcesSuite extends QueryTest with BeforeAndAfterEach {
 
     assert(expectedSchema === table("jsonTable").schema)
 
-    jsonFile(filePath).registerTempTable("expectedJsonTable")
+    read.json(filePath).registerTempTable("expectedJsonTable")
 
     checkAnswer(
       sql("SELECT b, `<d>`.`=` FROM jsonTable"),
@@ -126,7 +123,7 @@ class MetastoreDataSourcesSuite extends QueryTest with BeforeAndAfterEach {
 
     checkAnswer(
       sql("SELECT * FROM jsonTable"),
-      jsonFile(filePath).collect().toSeq)
+      read.json(filePath).collect().toSeq)
   }
 
   test("drop table") {
@@ -141,7 +138,7 @@ class MetastoreDataSourcesSuite extends QueryTest with BeforeAndAfterEach {
 
     checkAnswer(
       sql("SELECT * FROM jsonTable"),
-      jsonFile(filePath).collect().toSeq)
+      read.json(filePath).collect().toSeq)
 
     sql("DROP TABLE jsonTable")
 
@@ -244,7 +241,7 @@ class MetastoreDataSourcesSuite extends QueryTest with BeforeAndAfterEach {
         |)
       """.stripMargin)
 
-    jsonFile(filePath).registerTempTable("expectedJsonTable")
+    read.json(filePath).registerTempTable("expectedJsonTable")
 
     checkAnswer(
       sql("SELECT * FROM jsonTable"),
@@ -477,7 +474,7 @@ class MetastoreDataSourcesSuite extends QueryTest with BeforeAndAfterEach {
     // Drop table will also delete the data.
     sql("DROP TABLE savedJsonTable")
     intercept[InvalidInputException] {
-      jsonFile(catalog.hiveDefaultTableFilePath("savedJsonTable"))
+      read.json(catalog.hiveDefaultTableFilePath("savedJsonTable"))
     }
 
     // Create an external table by specifying the path.
@@ -494,7 +491,7 @@ class MetastoreDataSourcesSuite extends QueryTest with BeforeAndAfterEach {
     // Data should not be deleted after we drop the table.
     sql("DROP TABLE savedJsonTable")
     checkAnswer(
-      jsonFile(tempPath.toString),
+      read.json(tempPath.toString),
       df.collect())
 
     conf.setConf(SQLConf.DEFAULT_DATA_SOURCE_NAME, originalDefaultSource)
@@ -529,7 +526,7 @@ class MetastoreDataSourcesSuite extends QueryTest with BeforeAndAfterEach {
     // Data should not be deleted.
     sql("DROP TABLE createdJsonTable")
     checkAnswer(
-      jsonFile(tempPath.toString),
+      read.json(tempPath.toString),
       df.collect())
 
     // Try to specify the schema.
