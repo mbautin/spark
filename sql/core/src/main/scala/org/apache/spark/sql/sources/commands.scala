@@ -23,7 +23,7 @@ import scala.collection.mutable
 
 import org.apache.hadoop.fs.Path
 import org.apache.hadoop.mapreduce._
-import org.apache.hadoop.mapreduce.lib.output.{FileOutputCommitter, FileOutputFormat}
+import org.apache.hadoop.mapreduce.lib.output.{FileOutputCommitter => MapReduceFileOutputCommitter, FileOutputFormat}
 import org.apache.hadoop.util.Shell
 import parquet.hadoop.util.ContextUtil
 
@@ -35,7 +35,7 @@ import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.catalyst.expressions.codegen.GenerateProjection
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.execution.RunnableCommand
-import org.apache.spark.sql.{DataFrame, SQLContext, SaveMode}
+import org.apache.spark.sql.{SQLConf, DataFrame, SQLContext, SaveMode}
 
 private[sql] case class InsertIntoDataSource(
     logicalRelation: LogicalRelation,
@@ -61,7 +61,6 @@ private[sql] case class InsertIntoDataSource(
 private[sql] case class InsertIntoHadoopFsRelation(
     @transient relation: HadoopFsRelation,
     @transient query: LogicalPlan,
-    partitionColumns: Array[String],
     mode: SaveMode)
   extends RunnableCommand {
 
@@ -93,11 +92,14 @@ private[sql] case class InsertIntoHadoopFsRelation(
       job.setOutputValueClass(classOf[Row])
       FileOutputFormat.setOutputPath(job, qualifiedOutputPath)
 
+      // We create a DataFrame by applying the schema of relation to the data to make sure.
+      // We are writing data based on the expected schema,
       val df = sqlContext.createDataFrame(
         DataFrame(sqlContext, query).queryExecution.toRdd,
         relation.schema,
         needsConversion = false)
 
+      val partitionColumns = relation.partitionColumns.fieldNames
       if (partitionColumns.isEmpty) {
         insert(new DefaultWriterContainer(relation, job), df)
       } else {
@@ -287,23 +289,38 @@ private[sql] abstract class BaseWriterContainer(
   protected def getWorkPath: String = {
     outputCommitter match {
       // FileOutputCommitter writes to a temporary location returned by `getWorkPath`.
-      case f: FileOutputCommitter => f.getWorkPath.toString
+      case f: MapReduceFileOutputCommitter => f.getWorkPath.toString
       case _ => outputPath
     }
   }
 
   private def newOutputCommitter(context: TaskAttemptContext): OutputCommitter = {
     val committerClass = context.getConfiguration.getClass(
-      "mapred.output.committer.class", null, classOf[OutputCommitter])
+      SQLConf.OUTPUT_COMMITTER_CLASS, null, classOf[OutputCommitter])
 
     Option(committerClass).map { clazz =>
-      val ctor = clazz.getDeclaredConstructor(classOf[Path], classOf[TaskAttemptContext])
-      ctor.newInstance(new Path(outputPath), context)
+      // Every output format based on org.apache.hadoop.mapreduce.lib.output.OutputFormat
+      // has an associated output committer. To override this output committer,
+      // we will first try to use the output committer set in SQLConf.OUTPUT_COMMITTER_CLASS.
+      // If a data source needs to override the output committer, it needs to set the
+      // output committer in prepareForWrite method.
+      if (classOf[MapReduceFileOutputCommitter].isAssignableFrom(clazz)) {
+        // The specified output committer is a FileOutputCommitter.
+        // So, we will use the FileOutputCommitter-specified constructor.
+        val ctor = clazz.getDeclaredConstructor(classOf[Path], classOf[TaskAttemptContext])
+        ctor.newInstance(new Path(outputPath), context)
+      } else {
+        // The specified output committer is just a OutputCommitter.
+        // So, we will use the no-argument constructor.
+        val ctor = clazz.getDeclaredConstructor()
+        ctor.newInstance()
+      }
     }.getOrElse {
+      // If output committer class is not set, we will use the one associated with the
+      // file output format.
       outputFormatClass.newInstance().getOutputCommitter(context)
     }
   }
-
 
   private def setupIDs(jobId: Int, splitId: Int, attemptId: Int): Unit = {
     this.jobId = SparkHadoopWriter.createJobID(new Date, jobId)
@@ -360,13 +377,22 @@ private[sql] class DefaultWriterContainer(
   override def outputWriterForRow(row: Row): OutputWriter = writer
 
   override def commitTask(): Unit = {
-    writer.close()
-    super.commitTask()
+    try {
+      writer.close()
+      super.commitTask()
+    } catch {
+      case cause: Throwable =>
+        super.abortTask()
+        throw new RuntimeException("Failed to commit task", cause)
+    }
   }
 
   override def abortTask(): Unit = {
-    writer.close()
-    super.abortTask()
+    try {
+      writer.close()
+    } finally {
+      super.abortTask()
+    }
   }
 }
 
@@ -405,13 +431,21 @@ private[sql] class DynamicPartitionWriterContainer(
   }
 
   override def commitTask(): Unit = {
-    outputWriters.values.foreach(_.close())
-    super.commitTask()
+    try {
+      outputWriters.values.foreach(_.close())
+      super.commitTask()
+    } catch { case cause: Throwable =>
+      super.abortTask()
+      throw new RuntimeException("Failed to commit task", cause)
+    }
   }
 
   override def abortTask(): Unit = {
-    outputWriters.values.foreach(_.close())
-    super.abortTask()
+    try {
+      outputWriters.values.foreach(_.close())
+    } finally {
+      super.abortTask()
+    }
   }
 }
 

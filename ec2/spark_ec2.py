@@ -19,8 +19,9 @@
 # limitations under the License.
 #
 
-from __future__ import with_statement, print_function
+from __future__ import division, print_function, with_statement
 
+import codecs
 import hashlib
 import itertools
 import logging
@@ -47,8 +48,10 @@ if sys.version < "3":
 else:
     from urllib.request import urlopen, Request
     from urllib.error import HTTPError
+    raw_input = input
+    xrange = range
 
-SPARK_EC2_VERSION = "1.2.1"
+SPARK_EC2_VERSION = "1.4.0"
 SPARK_EC2_DIR = os.path.dirname(os.path.realpath(__file__))
 
 VALID_SPARK_VERSIONS = set([
@@ -65,6 +68,9 @@ VALID_SPARK_VERSIONS = set([
     "1.1.1",
     "1.2.0",
     "1.2.1",
+    "1.3.0",
+    "1.3.1",
+    "1.4.0"
 ])
 
 SPARK_TACHYON_MAP = {
@@ -75,6 +81,8 @@ SPARK_TACHYON_MAP = {
     "1.1.1": "0.5.0",
     "1.2.0": "0.5.0",
     "1.2.1": "0.5.0",
+    "1.3.0": "0.5.0",
+    "1.3.1": "0.5.0",
 }
 
 DEFAULT_SPARK_VERSION = SPARK_EC2_VERSION
@@ -419,13 +427,14 @@ def get_spark_ami(opts):
         b=opts.spark_ec2_git_branch)
 
     ami_path = "%s/%s/%s" % (ami_prefix, opts.region, instance_type)
+    reader = codecs.getreader("ascii")
     try:
-        ami = urlopen(ami_path).read().strip()
-        print("Spark AMI: " + ami)
+        ami = reader(urlopen(ami_path)).read().strip()
     except:
         print("Could not resolve AMI at: " + ami_path, file=stderr)
         sys.exit(1)
 
+    print("Spark AMI: " + ami)
     return ami
 
 
@@ -746,7 +755,7 @@ def setup_cluster(conn, master_nodes, slave_nodes, opts, deploy_ssh_key):
                'mapreduce', 'spark-standalone', 'tachyon']
 
     if opts.hadoop_major_version == "1":
-        modules = filter(lambda x: x != "mapreduce", modules)
+        modules = list(filter(lambda x: x != "mapreduce", modules))
 
     if opts.ganglia:
         modules.append('ganglia')
@@ -1152,7 +1161,7 @@ def get_zones(conn, opts):
 
 # Gets the number of items in a partition
 def get_partition(total, num_partitions, current_partitions):
-    num_slaves_this_zone = total / num_partitions
+    num_slaves_this_zone = total // num_partitions
     if (total % num_partitions) - current_partitions > 0:
         num_slaves_this_zone += 1
     return num_slaves_this_zone
