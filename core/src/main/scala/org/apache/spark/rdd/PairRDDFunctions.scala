@@ -1340,7 +1340,7 @@ class PairRDDFunctions[K, V](self: RDD[(K, V)])
       jobFormat.checkOutputSpecs(job)
     }
 
-    val writeShard = (context: TaskContext, iter: Iterator[(K,V)]) => {
+    val writeShard = (context: TaskContext, iter: Iterator[(K, V)]) => {
       // Hadoop wants a 32-bit task attempt ID, so if ours is bigger than Int.MaxValue, roll it
       // around by taking a mod. We expect that no task will be attempted 2 billion times.
       val attemptNumber = (context.attemptId % Int.MaxValue).toInt
@@ -1355,7 +1355,7 @@ class PairRDDFunctions[K, V](self: RDD[(K, V)])
       }
       val committer = format.getOutputCommitter(hadoopContext)
       committer.setupTask(hadoopContext)
-      val writer = format.getRecordWriter(hadoopContext).asInstanceOf[NewRecordWriter[K,V]]
+      val writer = format.getRecordWriter(hadoopContext).asInstanceOf[NewRecordWriter[K, V]]
       try {
         while (iter.hasNext) {
           val pair = iter.next()
@@ -1377,7 +1377,7 @@ class PairRDDFunctions[K, V](self: RDD[(K, V)])
       self,
       writeShard,
       0 until self.partitions.size,
-      (_, _:Int) => {},
+      (_, _: Int) => {},
       { jobCommitter.commitJob(jobTaskContext) }
     )
   }
