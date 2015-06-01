@@ -135,7 +135,8 @@
     <curator.version>2.4.0</curator.version>
     <hive.group>org.spark-project.hive</hive.group>
     <!-- Version used in Maven Hive dependency -->
-    <hive.version>0.13.1a</hive.version>
+    <!-- <hive.version>0.13.1a</hive.version> -->
+    <hive.version>0.13.1a-csd-2-SNAPSHOT</hive.version>
     <!-- Version used for internal directory structure -->
     <hive.version.short>0.13.1</hive.version.short>
     <derby.version>10.10.1.1</derby.version>
@@ -1778,6 +1779,7 @@
         <module>sql/hive-thriftserver</module>
       </modules>
     </profile>
+<<<<<<< HEAD
     <profile>
       <id>hive-0.12.0</id>
       <properties>
@@ -1810,6 +1812,8 @@
         <derby.version>10.10.1.1</derby.version>
       </properties>
     </profile>
+=======
+>>>>>>> 4cafc63524aead1b0b339a970612ad38d479f2cc
 
     <profile>
       <id>scala-2.10</id>
