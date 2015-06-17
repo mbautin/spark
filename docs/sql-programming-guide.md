@@ -995,11 +995,11 @@ List<String> teenagerNames = teenagers.javaRDD().map(new Function<Row, String>()
 schemaPeople # The DataFrame from the previous example.
 
 # DataFrames can be saved as Parquet files, maintaining the schema information.
-schemaPeople.read.parquet("people.parquet")
+schemaPeople.write.parquet("people.parquet")
 
 # Read in the Parquet file created above.  Parquet files are self-describing so the schema is preserved.
 # The result of loading a parquet file is also a DataFrame.
-parquetFile = sqlContext.write.parquet("people.parquet")
+parquetFile = sqlContext.read.parquet("people.parquet")
 
 # Parquet files can also be registered as tables and then used in SQL statements.
 parquetFile.registerTempTable("parquetFile");
@@ -1812,7 +1812,7 @@ To start the JDBC/ODBC server, run the following in the Spark directory:
 This script accepts all `bin/spark-submit` command line options, plus a `--hiveconf` option to
 specify Hive properties.  You may run `./sbin/start-thriftserver.sh --help` for a complete list of
 all available options.  By default, the server listens on localhost:10000. You may override this
-bahaviour via either environment variables, i.e.:
+behaviour via either environment variables, i.e.:
 
 {% highlight bash %}
 export HIVE_SERVER2_THRIFT_PORT=<listening-port>
