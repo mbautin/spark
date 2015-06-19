@@ -15,35 +15,30 @@
  * limitations under the License.
  */
 
-package org.apache.spark.ml
+package org.apache.spark.sql.execution
 
-import org.apache.spark.annotation.DeveloperApi
-import org.apache.spark.ml.param.ParamMap
+import org.apache.spark.sql.catalyst.dsl.expressions._
 
-/**
- * :: DeveloperApi ::
- * A fitted model, i.e., a [[Transformer]] produced by an [[Estimator]].
- *
- * @tparam M model type
- */
-@DeveloperApi
-abstract class Model[M <: Model[M]] extends Transformer {
-  /**
-   * The parent estimator that produced this model.
-   * Note: For ensembles' component Models, this value can be null.
-   */
-  @transient var parent: Estimator[M] = _
+class SortSuite extends SparkPlanTest {
 
-  /**
-   * Sets the parent of this model (Java API).
-   */
-  def setParent(parent: Estimator[M]): M = {
-    this.parent = parent
-    this.asInstanceOf[M]
+  // This test was originally added as an example of how to use [[SparkPlanTest]];
+  // it's not designed to be a comprehensive test of ExternalSort.
+  test("basic sorting using ExternalSort") {
+
+    val input = Seq(
+      ("Hello", 4, 2.0),
+      ("Hello", 1, 1.0),
+      ("World", 8, 3.0)
+    )
+
+    checkAnswer(
+      input.toDF("a", "b", "c"),
+      ExternalSort('a.asc :: 'b.asc :: Nil, global = false, _: SparkPlan),
+      input.sorted)
+
+    checkAnswer(
+      input.toDF("a", "b", "c"),
+      ExternalSort('b.asc :: 'a.asc :: Nil, global = false, _: SparkPlan),
+      input.sortBy(t => (t._2, t._1)))
   }
-
-  /** Indicates whether this [[Model]] has a corresponding parent. */
-  def hasParent: Boolean = parent != null
-
-  override def copy(extra: ParamMap): M
 }
