@@ -30,6 +30,7 @@
   <name>Spark Project YARN</name>
   <properties>
     <sbt.project.name>yarn</sbt.project.name>
+    <jersey.version>1.17.1</jersey.version>
   </properties>
 
   <dependencies>
