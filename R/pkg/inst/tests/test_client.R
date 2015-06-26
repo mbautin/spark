@@ -15,6 +15,18 @@
 # limitations under the License.
 #
 
-.onLoad <- function(libname, pkgname) {
-  sparkR.onLoad(libname, pkgname)
-}
+context("functions in client.R")
+
+test_that("adding spark-testing-base as a package works", {
+  args <- generateSparkSubmitArgs("", "", "", "",
+                                  "holdenk:spark-testing-base:1.3.0_0.0.5")
+  expect_equal(gsub("[[:space:]]", "", args),
+               gsub("[[:space:]]", "",
+                    "--packages holdenk:spark-testing-base:1.3.0_0.0.5"))
+})
+
+test_that("no package specified doesn't add packages flag", {
+  args <- generateSparkSubmitArgs("", "", "", "", "")
+  expect_equal(gsub("[[:space:]]", "", args),
+               "")
+})
