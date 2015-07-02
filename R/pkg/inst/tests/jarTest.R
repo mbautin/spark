@@ -14,7 +14,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+library(SparkR)
 
-.onLoad <- function(libname, pkgname) {
-  sparkR.onLoad(libname, pkgname)
-}
+sc <- sparkR.init()
+
+helloTest <- SparkR:::callJStatic("sparkR.test.hello",
+                                  "helloWorld",
+                                  "Dave")
+
+basicFunction <- SparkR:::callJStatic("sparkR.test.basicFunction",
+                                      "addStuff",
+                                      2L,
+                                      2L)
+
+sparkR.stop()
+output <- c(helloTest, basicFunction)
+writeLines(output)
