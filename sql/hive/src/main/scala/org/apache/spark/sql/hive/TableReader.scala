@@ -18,7 +18,7 @@
 package org.apache.spark.sql.hive
 
 import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.fs.{Path, PathFilter}
+import org.apache.hadoop.fs.{FileSystem, Path, PathFilter}
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.metastore.api.hive_metastoreConstants._
 import org.apache.hadoop.hive.ql.exec.Utilities
@@ -106,7 +106,11 @@ class HadoopTableReader(
     val broadcastedHiveConf = _broadcastedHiveConf
 
     val tablePath = hiveTable.getPath
-    val inputPathStr = applyFilterIfNeeded(tablePath, filterOpt)
+    val fs = tablePath.getFileSystem(sc.hiveconf)
+    val inputPathStr =
+      sc.hadoopFileSelector.flatMap(
+        _.selectFiles(relation.tableName, fs, tablePath)).map(_.mkString(",")).getOrElse(
+        applyFilterIfNeeded(tablePath, filterOpt))
 
     // logDebug("Table input: %s".format(tablePath))
     val ifc = hiveTable.getInputFormatClass
@@ -395,4 +399,17 @@ private[hive] object HadoopTableReader extends HiveInspectors with Logging {
       mutableRow: Row
     }
   }
+}
+
+abstract class HadoopFileSelector {
+  /**
+   * Select files constituting a table from the given base path according to the client's custom
+   * algorithm. This is only applied to non-partitioned tables.
+   * @param tableName table name to select files for
+   * @param fs the filesystem containing the table
+   * @param basePath base path of the table in the filesystem
+   * @return a set of files, or [[None]] if the custom file selection algorithm does not apply
+   *         to this table.
+   */
+  def selectFiles(tableName: String, fs: FileSystem, basePath: Path): Option[Seq[Path]]
 }

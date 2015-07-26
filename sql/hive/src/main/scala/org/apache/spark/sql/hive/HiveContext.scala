@@ -150,6 +150,9 @@ class HiveContext(sc: SparkContext) extends SQLContext(sc) {
   @transient
   protected[sql] lazy val substitutor = new VariableSubstitution()
 
+  @transient
+  protected[sql] var hadoopFileSelector: Option[HadoopFileSelector] = None
+
   /**
    * The copy of the hive client that is used for execution.  Currently this must always be
    * Hive 13 as this is the version of Hive that is packaged with Spark SQL.  This copy of the
@@ -514,6 +517,15 @@ class HiveContext(sc: SparkContext) extends SQLContext(sc) {
         case _ => super.simpleString
       }
   }
+
+  def setTableNamePreprocessor(tableNamePreprocessor: (String) => String): Unit = {
+    catalog.setTableNamePreprocessor(tableNamePreprocessor)
+  }
+
+  def setHadoopFileSelector(hadoopFileSelector: Option[HadoopFileSelector]): Unit = {
+    this.hadoopFileSelector = hadoopFileSelector
+  }
+
 }
 
 
