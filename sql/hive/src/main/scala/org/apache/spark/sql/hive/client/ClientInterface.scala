@@ -68,6 +68,8 @@ private[hive] case class HiveTable(
     this
   }
 
+  def withTableName(newName: String): HiveTable = copy(name = newName).withClient(client)
+
   def database: String = specifiedDatabase.getOrElse(sys.error("database not resolved"))
 
   def isPartitioned: Boolean = partitionColumns.nonEmpty

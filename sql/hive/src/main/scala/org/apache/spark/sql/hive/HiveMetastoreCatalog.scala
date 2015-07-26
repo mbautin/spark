@@ -368,14 +368,21 @@ private[hive] class HiveMetastoreCatalog(val client: ClientInterface, hive: Hive
     client.getTableOption(databaseName, tblName).isDefined
   }
 
+  private[this] var tableNamePreprocessor: (String) => String = identity
+
+  def setTableNamePreprocessor(newTableNamePreprocessor: (String) => String): Unit = {
+    tableNamePreprocessor = newTableNamePreprocessor
+  }
+
   def lookupRelation(
       tableIdentifier: Seq[String],
       alias: Option[String]): LogicalPlan = {
     val tableIdent = processTableIdentifier(tableIdentifier)
     val databaseName = tableIdent.lift(tableIdent.size - 2).getOrElse(
       client.currentDatabase)
-    val tblName = tableIdent.last
-    val table = client.getTable(databaseName, tblName)
+    val rawTableName = tableIdent.last
+    val tblName = tableNamePreprocessor(rawTableName)
+    val table = client.getTable(databaseName, tblName).withTableName(rawTableName)
 
     if (table.properties.get("spark.sql.sources.provider").isDefined) {
       val dataSourceTable =
