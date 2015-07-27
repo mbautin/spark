@@ -109,8 +109,8 @@ class HadoopTableReader(
     val fs = tablePath.getFileSystem(sc.hiveconf)
     val inputPaths: Seq[Path] =
       sc.hadoopFileSelector.flatMap(
-        _.selectFiles(hiveTable.getTableName, fs, tablePath)
-      ).getOrElse(applyFilterIfNeeded(tablePath, filterOpt))
+        _.selectFiles(hiveTable.getTableName, fs, tablePath).
+      ).map(_.map(_.toString)).getOrElse(applyFilterIfNeeded(tablePath, filterOpt))
 
     // logDebug("Table input: %s".format(tablePath))
     val ifc = hiveTable.getInputFormatClass
@@ -258,11 +258,11 @@ class HadoopTableReader(
    * If `filterOpt` is defined, then it will be used to filter files from `path`. These files are
    * returned in a single, comma-separated string.
    */
-  private def applyFilterIfNeeded(path: Path, filterOpt: Option[PathFilter]): Seq[Path] = {
+  private def applyFilterIfNeeded(path: Path, filterOpt: Option[PathFilter]): Seq[String] = {
     filterOpt match {
       case Some(filter) =>
         val fs = path.getFileSystem(sc.hiveconf)
-        fs.listStatus(path, filter).map(_.getPath)
+        fs.listStatus(path, filter).map(_.getPath.toString)
       case None => Seq(path)
     }
   }
@@ -273,7 +273,7 @@ class HadoopTableReader(
    */
   private def createHadoopRdd(
     tableDesc: TableDesc,
-    paths: Seq[Path],
+    paths: Seq[String],
     inputFormatClass: Class[InputFormat[Writable, Writable]]): RDD[Writable] = {
 
     val initializeJobConfFunc = HadoopTableReader.initializeLocalJobConfFunc(paths, tableDesc) _
@@ -297,8 +297,8 @@ private[hive] object HadoopTableReader extends HiveInspectors with Logging {
    * Curried. After given an argument for 'path', the resulting JobConf => Unit closure is used to
    * instantiate a HadoopRDD.
    */
-  def initializeLocalJobConfFunc(paths: Seq[Path], tableDesc: TableDesc)(jobConf: JobConf) {
-    FileInputFormat.setInputPaths(jobConf, paths: _*)
+  def initializeLocalJobConfFunc(paths: Seq[String], tableDesc: TableDesc)(jobConf: JobConf) {
+    FileInputFormat.setInputPaths(jobConf, paths.map { pathStr => new Path(pathStr) }: _*)
     if (tableDesc != null) {
       PlanUtils.configureInputJobPropertiesForStorageHandler(tableDesc)
       Utilities.copyTableJobPropertiesToConf(tableDesc, jobConf)
