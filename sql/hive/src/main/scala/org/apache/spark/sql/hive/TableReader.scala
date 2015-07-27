@@ -105,9 +105,9 @@ class HadoopTableReader(
 
     val tablePath = hiveTable.getPath
     val fs = tablePath.getFileSystem(sc.hiveconf)
-    val inputPaths: Seq[Path] =
+    val inputPaths: Seq[String] =
       sc.hadoopFileSelector.flatMap(
-        _.selectFiles(hiveTable.getTableName, fs, tablePath).
+        _.selectFiles(hiveTable.getTableName, fs, tablePath)
       ).map(_.map(_.toString)).getOrElse(applyFilterIfNeeded(tablePath, filterOpt))
 
     // logDebug("Table input: %s".format(tablePath))
@@ -261,7 +261,7 @@ class HadoopTableReader(
       case Some(filter) =>
         val fs = path.getFileSystem(sc.hiveconf)
         fs.listStatus(path, filter).map(_.getPath.toString)
-      case None => Seq(path)
+      case None => Seq(path.toString)
     }
   }
 
@@ -402,7 +402,9 @@ abstract class HadoopFileSelector {
   /**
    * Select files constituting a table from the given base path according to the client's custom
    * algorithm. This is only applied to non-partitioned tables.
-   * @param tableName table name to select files for
+   * @param tableName table name to select files for. This is the exact table name specified
+   *                  in the query, not a "preprocessed" file name returned by the user-defined
+   *                  function registered via [[HiveContext.setTableNamePreprocessor]].
    * @param fs the filesystem containing the table
    * @param basePath base path of the table in the filesystem
    * @return a set of files, or [[None]] if the custom file selection algorithm does not apply
