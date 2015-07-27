@@ -105,16 +105,15 @@ class HadoopTableReader(
 
     val tablePath = hiveTable.getPath
     val fs = tablePath.getFileSystem(sc.hiveconf)
-    val inputPathStr =
+    val inputPaths: Seq[Path] =
       sc.hadoopFileSelector.flatMap(
-        _.selectFiles(hiveTable.getTableName, fs, tablePath)).map { fileOrDirList =>
-          fileOrDirList.map(_.toUri.getPath).mkString(",")
-        }.getOrElse(applyFilterIfNeeded(tablePath, filterOpt))
+        _.selectFiles(hiveTable.getTableName, fs, tablePath)
+      ).getOrElse(applyFilterIfNeeded(tablePath, filterOpt))
 
     // logDebug("Table input: %s".format(tablePath))
     val ifc = hiveTable.getInputFormatClass
       .asInstanceOf[java.lang.Class[InputFormat[Writable, Writable]]]
-    val hadoopRDD = createHadoopRdd(tableDesc, inputPathStr, ifc)
+    val hadoopRDD = createHadoopRdd(tableDesc, inputPaths, ifc)
 
     val attrsWithIndex = attributes.zipWithIndex
     val mutableRow = new SpecificMutableRow(attributes.map(_.dataType))
@@ -191,7 +190,7 @@ class HadoopTableReader(
       .map { case (partition, partDeserializer) =>
       val partDesc = Utilities.getPartitionDesc(partition)
       val partPath = partition.getDataLocation
-      val inputPathStr = applyFilterIfNeeded(partPath, filterOpt)
+      val inputPaths = applyFilterIfNeeded(partPath, filterOpt)
       val ifc = partDesc.getInputFileFormatClass
         .asInstanceOf[java.lang.Class[InputFormat[Writable, Writable]]]
       // Get partition field info
@@ -231,7 +230,7 @@ class HadoopTableReader(
       // Fill all partition keys to the given MutableRow object
       fillPartitionKeys(partValues, mutableRow)
 
-      createHadoopRdd(tableDesc, inputPathStr, ifc).mapPartitions { iter =>
+      createHadoopRdd(tableDesc, inputPaths, ifc).mapPartitions { iter =>
         val hconf = broadcastedHiveConf.value.value
         val deserializer = localDeserializer.newInstance()
         deserializer.initialize(hconf, partProps)
@@ -257,13 +256,12 @@ class HadoopTableReader(
    * If `filterOpt` is defined, then it will be used to filter files from `path`. These files are
    * returned in a single, comma-separated string.
    */
-  private def applyFilterIfNeeded(path: Path, filterOpt: Option[PathFilter]): String = {
+  private def applyFilterIfNeeded(path: Path, filterOpt: Option[PathFilter]): Seq[Path] = {
     filterOpt match {
       case Some(filter) =>
         val fs = path.getFileSystem(sc.hiveconf)
-        val filteredFiles = fs.listStatus(path, filter).map(_.getPath.toString)
-        filteredFiles.mkString(",")
-      case None => path.toString
+        fs.listStatus(path, filter).map(_.getPath)
+      case None => Seq(path)
     }
   }
 
@@ -273,10 +271,10 @@ class HadoopTableReader(
    */
   private def createHadoopRdd(
     tableDesc: TableDesc,
-    path: String,
+    paths: Seq[Path],
     inputFormatClass: Class[InputFormat[Writable, Writable]]): RDD[Writable] = {
 
-    val initializeJobConfFunc = HadoopTableReader.initializeLocalJobConfFunc(path, tableDesc) _
+    val initializeJobConfFunc = HadoopTableReader.initializeLocalJobConfFunc(paths, tableDesc) _
 
     val rdd = new HadoopRDD(
       sc.sparkContext,
@@ -297,8 +295,8 @@ private[hive] object HadoopTableReader extends HiveInspectors with Logging {
    * Curried. After given an argument for 'path', the resulting JobConf => Unit closure is used to
    * instantiate a HadoopRDD.
    */
-  def initializeLocalJobConfFunc(path: String, tableDesc: TableDesc)(jobConf: JobConf) {
-    FileInputFormat.setInputPaths(jobConf, Seq[Path](new Path(path)): _*)
+  def initializeLocalJobConfFunc(paths: Seq[Path], tableDesc: TableDesc)(jobConf: JobConf) {
+    FileInputFormat.setInputPaths(jobConf, paths: _*)
     if (tableDesc != null) {
       PlanUtils.configureInputJobPropertiesForStorageHandler(tableDesc)
       Utilities.copyTableJobPropertiesToConf(tableDesc, jobConf)
