@@ -107,7 +107,7 @@ class HadoopTableReader(
     val fs = tablePath.getFileSystem(sc.hiveconf)
     val inputPathStr =
       sc.hadoopFileSelector.flatMap(
-        _.selectFiles(relation.tableName, fs, tablePath)).map(_.mkString(",")).getOrElse(
+        _.selectFiles(hiveTable.getTableName, fs, tablePath)).map(_.mkString(",")).getOrElse(
         applyFilterIfNeeded(tablePath, filterOpt))
 
     // logDebug("Table input: %s".format(tablePath))
