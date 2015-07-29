@@ -121,12 +121,13 @@ class HadoopTableReader(
     val attrsWithIndex = attributes.zipWithIndex
     val mutableRow = new SpecificMutableRow(attributes.map(_.dataType))
 
+    val localEmptyStringsAsNulls = emptyStringsAsNulls  // for serializability
     val deserializedHadoopRDD = hadoopRDD.mapPartitions { iter =>
       val hconf = broadcastedHiveConf.value.value
       val deserializer = deserializerClass.newInstance()
       deserializer.initialize(hconf, tableDesc.getProperties)
       HadoopTableReader.fillObject(iter, deserializer, attrsWithIndex, mutableRow, deserializer,
-        emptyStringsAsNulls)
+        localEmptyStringsAsNulls)
     }
 
     deserializedHadoopRDD
@@ -234,6 +235,7 @@ class HadoopTableReader(
       // Fill all partition keys to the given MutableRow object
       fillPartitionKeys(partValues, mutableRow)
 
+      val localEmptyStringsAsNulls = emptyStringsAsNulls  // for serializability
       createHadoopRdd(tableDesc, inputPaths, ifc).mapPartitions { iter =>
         val hconf = broadcastedHiveConf.value.value
         val deserializer = localDeserializer.newInstance()
@@ -244,7 +246,7 @@ class HadoopTableReader(
 
         // fill the non partition key attributes
         HadoopTableReader.fillObject(iter, deserializer, nonPartitionKeyAttrs,
-          mutableRow, tableSerDe, emptyStringsAsNulls)
+          mutableRow, tableSerDe, localEmptyStringsAsNulls)
       }
     }.toSeq
 
