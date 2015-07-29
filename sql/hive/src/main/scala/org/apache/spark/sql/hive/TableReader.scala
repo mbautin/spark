@@ -365,34 +365,30 @@ private[hive] object HadoopTableReader extends HiveInspectors with Logging {
           (value: Any, row: MutableRow, ordinal: Int) => row.setFloat(ordinal, oi.get(value))
         case oi: DoubleObjectInspector =>
           (value: Any, row: MutableRow, ordinal: Int) => row.setDouble(ordinal, oi.get(value))
-        case oi: HiveVarcharObjectInspector =>
-          if (emptyStringsAsNulls) {
-            (value: Any, row: MutableRow, ordinal: Int) => {
-              val strValue = oi.getPrimitiveJavaObject(value).getValue
-              if (strValue.isEmpty) {
-                row.setString(ordinal, null)
-              } else {
-                row.setString(ordinal, strValue)
-              }
+        case oi: HiveVarcharObjectInspector if emptyStringsAsNulls =>
+          (value: Any, row: MutableRow, ordinal: Int) => {
+            val strValue = UTF8String.fromString(oi.getPrimitiveJavaObject(value).getValue)
+            if (strValue.isEmpty) {
+              row.update(ordinal, null)
+            } else {
+              row.update(ordinal, strValue)
             }
-          } else {
-            (value: Any, row: MutableRow, ordinal: Int) =>
-              row.update(ordinal, UTF8String.fromString(oi.getPrimitiveJavaObject(value).getValue))
+          }
+        case oi: HiveVarcharObjectInspector =>
+          (value: Any, row: MutableRow, ordinal: Int) =>
+            row.update(ordinal, UTF8String.fromString(oi.getPrimitiveJavaObject(value).getValue))
+        case oi: StringObjectInspector if emptyStringsAsNulls =>
+          (value: Any, row: MutableRow, ordinal: Int) => {
+            val strValue = UTF8String.fromString(oi.getPrimitiveJavaObject(value)
+            if (strValue.isEmpty) {
+              row.update(ordinal, null)
+            } else {
+              row.update(ordinal, strValue)
+            }
           }
         case oi: StringObjectInspector =>
-          if (emptyStringsAsNulls) {
-            (value: Any, row: MutableRow, ordinal: Int) => {
-              val strValue = oi.getPrimitiveJavaObject(value)
-              if (strValue.isEmpty) {
-                row.setString(ordinal, null)
-              } else {
-                row.setString(ordinal, strValue)
-              }
-            }
-          } else {
-            (value: Any, row: MutableRow, ordinal: Int) =>
-              row.setString(ordinal, oi.getPrimitiveJavaObject(value))
-          }
+          (value: Any, row: MutableRow, ordinal: Int) =>
+            row.update(ordinal, UTF8String.fromString(oi.getPrimitiveJavaObject(value))
         case oi: HiveDecimalObjectInspector =>
           (value: Any, row: MutableRow, ordinal: Int) =>
             row.update(ordinal, HiveShim.toCatalystDecimal(oi, value))
