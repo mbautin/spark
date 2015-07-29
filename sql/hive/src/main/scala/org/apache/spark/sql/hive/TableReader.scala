@@ -61,7 +61,7 @@ class HadoopTableReader(
   extends TableReader with Logging {
 
   private val emptyStringsAsNulls =
-    sc.hiveconf.getBoolean("spark.sql.emptyStringsAsNulls", false)
+    sc.getConf("spark.sql.emptyStringsAsNulls", "false").toBoolean
 
   // Hadoop honors "mapred.map.tasks" as hint, but will ignore when mapred.job.tracker is "local".
   // https://hadoop.apache.org/docs/r1.0.4/mapred-default.html
