@@ -60,6 +60,9 @@ class HadoopTableReader(
     @transient hiveExtraConf: HiveConf)
   extends TableReader with Logging {
 
+  private val emptyStringsAsNulls =
+    sc.hiveconf.getBoolean("spark.sql.emptyStringsAsNulls", false)
+
   // Hadoop honors "mapred.map.tasks" as hint, but will ignore when mapred.job.tracker is "local".
   // https://hadoop.apache.org/docs/r1.0.4/mapred-default.html
   //
@@ -122,7 +125,8 @@ class HadoopTableReader(
       val hconf = broadcastedHiveConf.value.value
       val deserializer = deserializerClass.newInstance()
       deserializer.initialize(hconf, tableDesc.getProperties)
-      HadoopTableReader.fillObject(iter, deserializer, attrsWithIndex, mutableRow, deserializer)
+      HadoopTableReader.fillObject(iter, deserializer, attrsWithIndex, mutableRow, deserializer,
+        emptyStringsAsNulls)
     }
 
     deserializedHadoopRDD
@@ -240,7 +244,7 @@ class HadoopTableReader(
 
         // fill the non partition key attributes
         HadoopTableReader.fillObject(iter, deserializer, nonPartitionKeyAttrs,
-          mutableRow, tableSerDe)
+          mutableRow, tableSerDe, emptyStringsAsNulls)
       }
     }.toSeq
 
@@ -314,6 +318,7 @@ private[hive] object HadoopTableReader extends HiveInspectors with Logging {
    *                             positions in the output schema
    * @param mutableRow A reusable `MutableRow` that should be filled
    * @param tableDeser Table Deserializer
+   * @param emptyStringsAsNulls whether to treat empty strings as nulls
    * @return An `Iterator[Row]` transformed from `iterator`
    */
   def fillObject(
@@ -321,7 +326,8 @@ private[hive] object HadoopTableReader extends HiveInspectors with Logging {
       rawDeser: Deserializer,
       nonPartitionKeyAttrs: Seq[(Attribute, Int)],
       mutableRow: MutableRow,
-      tableDeser: Deserializer): Iterator[InternalRow] = {
+      tableDeser: Deserializer,
+      emptyStringsAsNulls: Boolean): Iterator[InternalRow] = {
 
     val soi = if (rawDeser.getObjectInspector.equals(tableDeser.getObjectInspector)) {
       rawDeser.getObjectInspector.asInstanceOf[StructObjectInspector]
@@ -358,8 +364,18 @@ private[hive] object HadoopTableReader extends HiveInspectors with Logging {
         case oi: DoubleObjectInspector =>
           (value: Any, row: MutableRow, ordinal: Int) => row.setDouble(ordinal, oi.get(value))
         case oi: HiveVarcharObjectInspector =>
-          (value: Any, row: MutableRow, ordinal: Int) =>
-            row.update(ordinal, UTF8String.fromString(oi.getPrimitiveJavaObject(value).getValue))
+          if (emptyStringsAsNulls) {
+            (value: Any, row: MutableRow, ordinal: Int) =>
+              val colValue = oi.getPrimitiveJavaObject(value).getValue
+              if (colValue.isInstanceOf[String] && colValue.asInstanceOf[String].isEmpty) {
+                row.setString(ordinal, null)
+              } else {
+                row.setString(ordinal, colValue)
+              }
+          } else {
+            (value: Any, row: MutableRow, ordinal: Int) =>
+              row.update(ordinal, UTF8String.fromString(oi.getPrimitiveJavaObject(value).getValue))
+          }
         case oi: HiveDecimalObjectInspector =>
           (value: Any, row: MutableRow, ordinal: Int) =>
             row.update(ordinal, HiveShim.toCatalystDecimal(oi, value))
