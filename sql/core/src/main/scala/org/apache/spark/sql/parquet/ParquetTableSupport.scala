@@ -37,7 +37,7 @@ import org.apache.spark.unsafe.types.UTF8String
 /**
  * A `parquet.hadoop.api.WriteSupport` for Row objects.
  */
-private[parquet] class RowWriteSupport extends WriteSupport[InternalRow] with Logging {
+class RowWriteSupport extends WriteSupport[InternalRow] with Logging {
 
   private[parquet] var writer: RecordConsumer = null
   private[parquet] var attributes: Array[Attribute] = null
@@ -255,7 +255,7 @@ private[parquet] class RowWriteSupport extends WriteSupport[InternalRow] with Lo
 }
 
 // Optimized for non-nested rows
-private[parquet] class MutableRowWriteSupport extends RowWriteSupport {
+class MutableRowWriteSupport extends RowWriteSupport {
   override def write(record: InternalRow): Unit = {
     val attributesSize = attributes.size
     if (attributesSize > record.numFields) {
@@ -301,7 +301,7 @@ private[parquet] class MutableRowWriteSupport extends RowWriteSupport {
   }
 }
 
-private[parquet] object RowWriteSupport {
+object RowWriteSupport {
   val SPARK_ROW_SCHEMA: String = "org.apache.spark.sql.parquet.row.attributes"
 
   def getSchema(configuration: Configuration): Seq[Attribute] = {
