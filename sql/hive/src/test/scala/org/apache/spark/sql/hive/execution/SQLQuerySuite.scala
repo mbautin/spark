@@ -17,6 +17,7 @@
 
 package org.apache.spark.sql.hive.execution
 
+import org.apache.spark.sql.TestData.NullInts
 import org.apache.spark.sql.catalyst.DefaultParserDialect
 import org.apache.spark.sql.catalyst.analysis.EliminateSubQueries
 import org.apache.spark.sql.catalyst.errors.DialectException
@@ -27,6 +28,7 @@ import org.apache.spark.sql.hive.test.TestHive.implicits._
 import org.apache.spark.sql.hive.{HiveQLDialect, HiveShim, MetastoreRelation}
 import org.apache.spark.sql.parquet.ParquetRelation2
 import org.apache.spark.sql.sources.LogicalRelation
+import org.apache.spark.sql.test.SQLTestUtils
 import org.apache.spark.sql.types._
 
 case class Nested1(f1: Nested2)
@@ -59,7 +61,9 @@ class MyDialect extends DefaultParserDialect
  * Hive to generate them (in contrast to HiveQuerySuite).  Often this is because the query is
  * valid, but Hive currently cannot execute it.
  */
-class SQLQuerySuite extends QueryTest {
+class SQLQuerySuite extends QueryTest with SQLTestUtils {
+  override val sqlContext: SQLContext = TestHive
+
   test("SPARK-6835: udtf in lateral view") {
     val df = Seq((1, 1)).toDF("c1", "c2")
     df.registerTempTable("table1")
@@ -946,4 +950,28 @@ class SQLQuerySuite extends QueryTest {
 
     checkAnswer(sql("SELECT a.`c.b`, `b.$q`[0].`a@!.q`, `q.w`.`w.i&`[0] FROM t"), Row(1, 1, 1))
   }
+
+  test("SPARK-8828 sum should return null if all input values are null") {
+    val allNulls =
+      TestHive.sparkContext.parallelize(
+        NullInts(null) ::
+        NullInts(null) ::
+        NullInts(null) ::
+        NullInts(null) :: Nil).toDF()
+    allNulls.registerTempTable("allNulls")
+
+    withSQLConf(SQLConf.CODEGEN_ENABLED -> "true") {
+      checkAnswer(
+        sql("select sum(a), avg(a) from allNulls"),
+        Seq(Row(null, null))
+      )
+    }
+    withSQLConf(SQLConf.CODEGEN_ENABLED -> "false") {
+      checkAnswer(
+        sql("select sum(a), avg(a) from allNulls"),
+        Seq(Row(null, null))
+      )
+    }
+  }
+
 }

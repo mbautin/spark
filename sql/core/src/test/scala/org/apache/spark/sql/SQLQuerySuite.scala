@@ -26,7 +26,7 @@ import org.apache.spark.sql.catalyst.errors.DialectException
 import org.apache.spark.sql.execution.GeneratedAggregate
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.TestData._
-import org.apache.spark.sql.test.TestSQLContext
+import org.apache.spark.sql.test.{SQLTestUtils, TestSQLContext}
 import org.apache.spark.sql.test.TestSQLContext.{udf => _, _}
 
 import org.apache.spark.sql.types._
