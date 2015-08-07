@@ -26,7 +26,7 @@ import org.apache.spark.sql.catalyst.errors.DialectException
 import org.apache.spark.sql.execution.GeneratedAggregate
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.TestData._
-import org.apache.spark.sql.test.TestSQLContext
+import org.apache.spark.sql.test.{SQLTestUtils, TestSQLContext}
 import org.apache.spark.sql.test.TestSQLContext.{udf => _, _}
 
 import org.apache.spark.sql.types._
@@ -253,7 +253,7 @@ class SQLQuerySuite extends QueryTest with BeforeAndAfterAll {
     // Aggregate with Code generation handling all null values
     testCodeGen(
       "SELECT  sum('a'), avg('a'), count(null) FROM testData",
-      Row(0, null, 0) :: Nil)
+      Row(null, null, 0) :: Nil)
 
     dropTempTable("testData3x")
     setConf(SQLConf.CODEGEN_ENABLED, originalValue.toString)
