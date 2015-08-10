@@ -368,7 +368,7 @@ private[hive] object HadoopTableReader extends HiveInspectors with Logging {
         case oi: HiveVarcharObjectInspector if emptyStringsAsNulls =>
           (value: Any, row: MutableRow, ordinal: Int) => {
             val strValue = UTF8String.fromString(oi.getPrimitiveJavaObject(value).getValue)
-            if (strValue.isEmpty) {
+            if (strValue == UTF8String.EMPTY_UTF8) {
               row.update(ordinal, null)
             } else {
               row.update(ordinal, strValue)
@@ -379,8 +379,8 @@ private[hive] object HadoopTableReader extends HiveInspectors with Logging {
             row.update(ordinal, UTF8String.fromString(oi.getPrimitiveJavaObject(value).getValue))
         case oi: StringObjectInspector if emptyStringsAsNulls =>
           (value: Any, row: MutableRow, ordinal: Int) => {
-            val strValue = UTF8String.fromString(oi.getPrimitiveJavaObject(value)
-            if (strValue.isEmpty) {
+            val strValue = UTF8String.fromString(oi.getPrimitiveJavaObject(value))
+            if (strValue == UTF8String.EMPTY_UTF8) {
               row.update(ordinal, null)
             } else {
               row.update(ordinal, strValue)
@@ -388,7 +388,7 @@ private[hive] object HadoopTableReader extends HiveInspectors with Logging {
           }
         case oi: StringObjectInspector =>
           (value: Any, row: MutableRow, ordinal: Int) =>
-            row.update(ordinal, UTF8String.fromString(oi.getPrimitiveJavaObject(value))
+            row.update(ordinal, UTF8String.fromString(oi.getPrimitiveJavaObject(value)))
         case oi: HiveDecimalObjectInspector =>
           (value: Any, row: MutableRow, ordinal: Int) =>
             row.update(ordinal, HiveShim.toCatalystDecimal(oi, value))
