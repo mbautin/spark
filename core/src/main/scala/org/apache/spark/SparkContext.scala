@@ -1983,7 +1983,6 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
       (context: TaskContext, iter: Iterator[T]) => cleanF(context, iter),
       partitions,
       callSite,
-      allowLocal = false,
       resultHandler,
       localProperties.get)
 
