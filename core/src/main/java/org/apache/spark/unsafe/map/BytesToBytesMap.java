@@ -193,6 +193,11 @@ public final class BytesToBytesMap {
         TaskMemoryManager.MAXIMUM_PAGE_SIZE_BYTES);
     }
     allocate(initialCapacity);
+
+    // Acquire a new page as soon as we construct the map to ensure that we have at least
+    // one page to work with. Otherwise, other operators in the same task may starve this
+    // map (SPARK-9747).
+    acquireNewPage();
   }
 
   public BytesToBytesMap(
@@ -270,10 +275,10 @@ public final class BytesToBytesMap {
 
     @Override
     public Location next() {
-      int totalLength = PlatformDependent.UNSAFE.getInt(pageBaseObject, offsetInPage);
+      int totalLength = Platform.getInt(pageBaseObject, offsetInPage);
       if (totalLength == END_OF_PAGE_MARKER) {
         advanceToNextPage();
-        totalLength = PlatformDependent.UNSAFE.getInt(pageBaseObject, offsetInPage);
+        totalLength = Platform.getInt(pageBaseObject, offsetInPage);
       }
       loc.with(currentPage, offsetInPage);
       offsetInPage += 4 + totalLength;
@@ -402,9 +407,9 @@ public final class BytesToBytesMap {
 
     private void updateAddressesAndSizes(final Object page, final long offsetInPage) {
       long position = offsetInPage;
-      final int totalLength = PlatformDependent.UNSAFE.getInt(page, position);
+      final int totalLength = Platform.getInt(page, position);
       position += 4;
-      keyLength = PlatformDependent.UNSAFE.getInt(page, position);
+      keyLength = Platform.getInt(page, position);
       position += 4;
       valueLength = totalLength - keyLength - 4;
 
@@ -572,18 +577,11 @@ public final class BytesToBytesMap {
           // There wasn't enough space in the current page, so write an end-of-page marker:
           final Object pageBaseObject = currentDataPage.getBaseObject();
           final long lengthOffsetInPage = currentDataPage.getBaseOffset() + pageCursor;
-          PlatformDependent.UNSAFE.putInt(pageBaseObject, lengthOffsetInPage, END_OF_PAGE_MARKER);
+          Platform.putInt(pageBaseObject, lengthOffsetInPage, END_OF_PAGE_MARKER);
         }
-        final long memoryGranted = shuffleMemoryManager.tryToAcquire(pageSizeBytes);
-        if (memoryGranted != pageSizeBytes) {
-          shuffleMemoryManager.release(memoryGranted);
-          logger.debug("Failed to acquire {} bytes of memory", pageSizeBytes);
+        if (!acquireNewPage()) {
           return false;
         }
-        MemoryBlock newPage = taskMemoryManager.allocatePage(pageSizeBytes);
-        dataPages.add(newPage);
-        pageCursor = 0;
-        currentDataPage = newPage;
         dataPage = currentDataPage;
         dataPageBaseObject = currentDataPage.getBaseObject();
         dataPageInsertOffset = currentDataPage.getBaseOffset();
@@ -608,21 +606,21 @@ public final class BytesToBytesMap {
       final long valueDataOffsetInPage = insertCursor;
       insertCursor += valueLengthBytes; // word used to store the value size
 
-      PlatformDependent.UNSAFE.putInt(dataPageBaseObject, recordOffset,
+      Platform.putInt(dataPageBaseObject, recordOffset,
         keyLengthBytes + valueLengthBytes + 4);
-      PlatformDependent.UNSAFE.putInt(dataPageBaseObject, keyLengthOffset, keyLengthBytes);
+      Platform.putInt(dataPageBaseObject, keyLengthOffset, keyLengthBytes);
       // Copy the key
-      PlatformDependent.copyMemory(
+      Platform.copyMemory(
         keyBaseObject, keyBaseOffset, dataPageBaseObject, keyDataOffsetInPage, keyLengthBytes);
       // Copy the value
-      PlatformDependent.copyMemory(valueBaseObject, valueBaseOffset, dataPageBaseObject,
+      Platform.copyMemory(valueBaseObject, valueBaseOffset, dataPageBaseObject,
         valueDataOffsetInPage, valueLengthBytes);
 
       // --- Update bookeeping data structures -----------------------------------------------------
 
       if (useOverflowPage) {
         // Store the end-of-page marker at the end of the data page
-        PlatformDependent.UNSAFE.putInt(dataPageBaseObject, insertCursor, END_OF_PAGE_MARKER);
+        Platform.putInt(dataPageBaseObject, insertCursor, END_OF_PAGE_MARKER);
       } else {
         pageCursor += requiredSize;
       }
@@ -640,6 +638,24 @@ public final class BytesToBytesMap {
       }
       return true;
     }
+  }
+
+  /**
+   * Acquire a new page from the {@link ShuffleMemoryManager}.
+   * @return whether there is enough space to allocate the new page.
+   */
+  private boolean acquireNewPage() {
+    final long memoryGranted = shuffleMemoryManager.tryToAcquire(pageSizeBytes);
+    if (memoryGranted != pageSizeBytes) {
+      shuffleMemoryManager.release(memoryGranted);
+      logger.debug("Failed to acquire {} bytes of memory", pageSizeBytes);
+      return false;
+    }
+    MemoryBlock newPage = taskMemoryManager.allocatePage(pageSizeBytes);
+    dataPages.add(newPage);
+    pageCursor = 0;
+    currentDataPage = newPage;
+    return true;
   }
 
   /**
@@ -748,7 +764,7 @@ public final class BytesToBytesMap {
   }
 
   @VisibleForTesting
-  int getNumDataPages() {
+  public int getNumDataPages() {
     return dataPages.size();
   }
 
