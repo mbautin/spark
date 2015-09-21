@@ -91,7 +91,7 @@ case class Filter(condition: Expression, child: LogicalPlan) extends UnaryNode {
 
 abstract class SetOperation(left: LogicalPlan, right: LogicalPlan) extends BinaryNode {
   // TODO: These aren't really the same attributes as nullability etc might change.
-  final override def output: Seq[Attribute] = left.output
+  override def output: Seq[Attribute] = left.output
 
   final override lazy val resolved: Boolean =
     childrenResolved &&
