@@ -1983,13 +1983,12 @@
           <artifactId>maven-source-plugin</artifactId>
           <version>2.4</version>
           <configuration>
-            <attach>false</attach>
+            <attach>true</attach>
           </configuration>
           <executions>
             <execution>
               <id>attach-sources</id>
               <goals>
-                <goal>jar-no-fork</goal>
                 <goal>test-jar-no-fork</goal>
               </goals>
             </execution>
