@@ -36,6 +36,8 @@
     <spark.jar.dir>scala-${scala.binary.version}</spark.jar.dir>
     <spark.jar.basename>spark-assembly-${project.version}-hadoop${hadoop.version}.jar</spark.jar.basename>
     <spark.jar>${project.build.directory}/${spark.jar.dir}/${spark.jar.basename}</spark.jar>
+    <thriftserver.target.dir>${basedir}/../sql/hive-thriftserver/target</thriftserver.target.dir>
+    <thriftserver.jar>spark-hive-thriftserver_${scala.binary.version}-${project.version}.jar</thriftserver.jar>
     <deb.pkg.name>spark</deb.pkg.name>
     <deb.install.path>/usr/share/spark</deb.install.path>
     <deb.user>root</deb.user>
@@ -323,7 +325,7 @@
                       </mapper>
                     </data>
                     <data>
-                      <src>${basedir}/../sql/hive-thriftserver/target/spark-hive-thriftserver_${scala.binary.version}-${project.version}.jar</src>
+                      <src>${thriftserver.target.dir}/${thriftserver.jar}</src>
                       <type>file</type>
                       <mapper>
                         <type>perm</type>
