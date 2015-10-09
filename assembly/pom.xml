@@ -323,6 +323,16 @@
                       </mapper>
                     </data>
                     <data>
+                      <src>${basedir}/../sql/hive-thriftserver/target/spark-hive-thriftserver_${scala.binary.version}-${project.version}.jar</src>
+                      <type>file</type>
+                      <mapper>
+                        <type>perm</type>
+                        <user>${deb.user}</user>
+                        <group>${deb.user}</group>
+                        <prefix>${deb.install.path}/lib</prefix>
+                      </mapper>
+                    </data>
+                    <data>
                       <src>${basedir}/../lib_managed/jars</src>
                       <type>directory</type>
                       <mapper>
