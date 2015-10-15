@@ -200,7 +200,6 @@ case class Window(
    * This method uses Code Generation. It can only be used on the executor side.
    *
    * @param expressions unbound ordered function expressions.
-   * @param attributes output attributes
    * @return the final resulting projection.
    */
   private[this] def createResultProjection(
@@ -248,17 +247,12 @@ case class Window(
         factories(index) = () => createFrameProcessor(frame, functions, ordinal)
     }
 
-    // AttributeReference can only be created in driver, or the id will not be unique
-    val outputAttributes = unboundExpressions.map {
-      e => AttributeReference("windowResult", e.dataType, e.nullable)()
-    }
-
     // Start processing.
     child.execute().mapPartitions { stream =>
       new Iterator[InternalRow] {
 
         // Get all relevant projections.
-        val result = createResultProjection(unboundExpressions, outputAttributes)
+        val result = createResultProjection(unboundExpressions)
         val grouping = if (child.outputsUnsafeRows) {
           UnsafeProjection.create(partitionSpec, child.output)
         } else {
