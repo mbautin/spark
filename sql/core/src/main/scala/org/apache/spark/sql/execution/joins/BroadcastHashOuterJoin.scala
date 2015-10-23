@@ -77,12 +77,11 @@ case class BroadcastHashOuterJoin(
           s"HashOuterJoin should not take $x as the JoinType")
     }
 
-    // broadcastFuture is used in "doExecute". Therefore we can get the execution id correctly here.
-    val executionId = sparkContext.getLocalProperty(SQLExecution.EXECUTION_ID_KEY)
+    val capturedLocalProperties = SQLExecution.captureLocalProperties(sparkContext)
     future {
-      // This will run in another thread. Set the execution id so that we can connect these jobs
-      // with the correct execution.
-      SQLExecution.withExecutionId(sparkContext, executionId) {
+      // This will run in another thread. Set local properties such as execution id and job group
+      // so that we can connect these jobs with the correct execution and cancel this job correctly.
+      SQLExecution.withCapturedLocalProperties(sparkContext, capturedLocalProperties) {
         // Note that we use .execute().collect() because we don't want to convert data to Scala
         // types
         val input: Array[InternalRow] = buildPlan.execute().map { row =>
