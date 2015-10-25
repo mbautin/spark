@@ -21,7 +21,11 @@
   <parent>
     <groupId>org.apache.spark</groupId>
     <artifactId>spark-parent_2.10</artifactId>
+<<<<<<< HEAD
     <version>1.5.1-csd-7-SNAPSHOT</version>
+=======
+    <version>1.5.3-SNAPSHOT</version>
+>>>>>>> 36fddb07acc0e077931cf9e063d4d461941eac65
     <relativePath>../../pom.xml</relativePath>
   </parent>
 
