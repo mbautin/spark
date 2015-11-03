@@ -194,7 +194,16 @@ case class Exchange(newPartitioning: Partitioning, child: SparkPlan) extends Una
  */
 private[sql] case class EnsureRequirements(sqlContext: SQLContext) extends Rule[SparkPlan] {
   // TODO: Determine the number of partitions.
-  private def numPartitions: Int = sqlContext.conf.numShufflePartitions
+  private def numPartitions: Int =
+    Option(sqlContext.sparkContext.getLocalProperty("spark.sql.shuffle.partitions")).map { str =>
+      try {
+        str.toInt
+      } catch {
+        case _: NumberFormatException =>
+          logError(s"Shuffle partition should be number, actual value $str")
+          sqlContext.conf.numShufflePartitions
+      }
+    }.getOrElse(sqlContext.conf.numShufflePartitions)
 
   /**
    * Given a required distribution, returns a partitioning that satisfies that distribution.
