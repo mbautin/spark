@@ -17,14 +17,13 @@
 
 package org.apache.spark.sql.hive.thriftserver
 
-import scala.collection.JavaConversions._
-
 import java.io._
 import java.util.{ArrayList => JArrayList, Locale}
 
+import scala.collection.JavaConversions._
+
 import jline.console.ConsoleReader
 import jline.console.history.FileHistory
-
 import org.apache.commons.lang3.StringUtils
 import org.apache.commons.logging.LogFactory
 import org.apache.hadoop.conf.Configuration
@@ -33,13 +32,14 @@ import org.apache.hadoop.hive.common.{HiveInterruptCallback, HiveInterruptUtils}
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.ql.Driver
 import org.apache.hadoop.hive.ql.exec.Utilities
-import org.apache.hadoop.hive.ql.processors.{AddResourceProcessor, SetProcessor, CommandProcessor, CommandProcessorFactory}
+import org.apache.hadoop.hive.ql.processors.{AddResourceProcessor, CommandProcessor, CommandProcessorFactory, SetProcessor}
 import org.apache.hadoop.hive.ql.session.SessionState
 import org.apache.thrift.transport.TSocket
 
 import org.apache.spark.Logging
+import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.hive.HiveContext
-import org.apache.spark.util.{ShutdownHookManager, Utils}
+import org.apache.spark.util.ShutdownHookManager
 
 /**
  * This code doesn't support remote connections in Hive 1.2+, as the underlying CliDriver
@@ -298,6 +298,7 @@ private[hive] class SparkSQLCLIDriver extends CliDriver with Logging {
 
           driver.init()
           val out = sessionState.out
+          val err = sessionState.err
           val start: Long = System.currentTimeMillis()
           if (sessionState.getIsVerbose) {
             out.println(cmd)
@@ -308,7 +309,12 @@ private[hive] class SparkSQLCLIDriver extends CliDriver with Logging {
 
           ret = rc.getResponseCode
           if (ret != 0) {
-            console.printError(rc.getErrorMessage())
+            // For analysis exception, only the error is printed out to the console.
+            rc.getException() match {
+              case e: AnalysisException =>
+                err.println(s"""Error in query: ${e.getMessage}""")
+              case _ => err.println(rc.getErrorMessage())
+            }
             driver.close()
             return ret
           }
