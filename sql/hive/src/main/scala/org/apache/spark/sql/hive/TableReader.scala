@@ -19,11 +19,11 @@ package org.apache.spark.sql.hive
 
 import java.util
 
-import org.apache.hadoop.fs.{Path, PathFilter}
+import org.apache.hadoop.fs.{FileSystem, Path, PathFilter}
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.metastore.api.hive_metastoreConstants._
 import org.apache.hadoop.hive.ql.exec.Utilities
-import org.apache.hadoop.hive.ql.metadata.{Partition => HivePartition, Table => HiveTable, Hive, HiveUtils, HiveStorageHandler}
+import org.apache.hadoop.hive.ql.metadata.{Partition => HivePartition, Table => HiveTable, HiveUtils}
 import org.apache.hadoop.hive.ql.plan.TableDesc
 import org.apache.hadoop.hive.serde2.Deserializer
 import org.apache.hadoop.hive.serde2.objectinspector.primitive._
@@ -61,6 +61,9 @@ class HadoopTableReader(
     @transient private val sc: HiveContext,
     hiveExtraConf: HiveConf)
   extends TableReader with Logging {
+
+  private val emptyStringsAsNulls =
+    sc.getConf("spark.sql.emptyStringsAsNulls", "false").toBoolean
 
   // Hadoop honors "mapred.map.tasks" as hint, but will ignore when mapred.job.tracker is "local".
   // https://hadoop.apache.org/docs/r1.0.4/mapred-default.html
@@ -106,21 +109,26 @@ class HadoopTableReader(
     val broadcastedHiveConf = _broadcastedHiveConf
 
     val tablePath = hiveTable.getPath
-    val inputPathStr = applyFilterIfNeeded(tablePath, filterOpt)
-
+    val fs = tablePath.getFileSystem(sc.hiveconf)
+    val inputPaths: Seq[String] =
+      sc.hadoopFileSelector.flatMap(
+        _.selectFiles(hiveTable.getTableName, fs, tablePath)
+      ).map(_.map(_.toString)).getOrElse(applyFilterIfNeeded(tablePath, filterOpt))
     // logDebug("Table input: %s".format(tablePath))
     val ifc = hiveTable.getInputFormatClass
       .asInstanceOf[java.lang.Class[InputFormat[Writable, Writable]]]
-    val hadoopRDD = createHadoopRdd(tableDesc, inputPathStr, ifc)
+    val hadoopRDD = createHadoopRdd(tableDesc, inputPaths, ifc)
 
     val attrsWithIndex = attributes.zipWithIndex
     val mutableRow = new SpecificMutableRow(attributes.map(_.dataType))
 
+    val localEmptyStringsAsNulls = emptyStringsAsNulls  // for serializability
     val deserializedHadoopRDD = hadoopRDD.mapPartitions { iter =>
       val hconf = broadcastedHiveConf.value.value
       val deserializer = deserializerClass.newInstance()
       deserializer.initialize(hconf, tableDesc.getProperties)
-      HadoopTableReader.fillObject(iter, deserializer, attrsWithIndex, mutableRow, deserializer)
+      HadoopTableReader.fillObject(iter, deserializer, attrsWithIndex, mutableRow, deserializer,
+        localEmptyStringsAsNulls)
     }
 
     deserializedHadoopRDD
@@ -188,7 +196,7 @@ class HadoopTableReader(
       .map { case (partition, partDeserializer) =>
       val partDesc = Utilities.getPartitionDesc(partition)
       val partPath = partition.getDataLocation
-      val inputPathStr = applyFilterIfNeeded(partPath, filterOpt)
+        val inputPaths = applyFilterIfNeeded(partPath, filterOpt)
       val ifc = partDesc.getInputFileFormatClass
         .asInstanceOf[java.lang.Class[InputFormat[Writable, Writable]]]
       // Get partition field info
@@ -228,7 +236,8 @@ class HadoopTableReader(
       // Fill all partition keys to the given MutableRow object
       fillPartitionKeys(partValues, mutableRow)
 
-      createHadoopRdd(tableDesc, inputPathStr, ifc).mapPartitions { iter =>
+        val localEmptyStringsAsNulls = emptyStringsAsNulls  // for serializability
+        createHadoopRdd(tableDesc, inputPaths, ifc).mapPartitions { iter =>
         val hconf = broadcastedHiveConf.value.value
         val deserializer = localDeserializer.newInstance()
         deserializer.initialize(hconf, partProps)
@@ -238,7 +247,7 @@ class HadoopTableReader(
 
         // fill the non partition key attributes
         HadoopTableReader.fillObject(iter, deserializer, nonPartitionKeyAttrs,
-          mutableRow, tableSerDe)
+          mutableRow, tableSerDe, localEmptyStringsAsNulls)
       }
     }.toSeq
 
@@ -254,13 +263,12 @@ class HadoopTableReader(
    * If `filterOpt` is defined, then it will be used to filter files from `path`. These files are
    * returned in a single, comma-separated string.
    */
-  private def applyFilterIfNeeded(path: Path, filterOpt: Option[PathFilter]): String = {
+  private def applyFilterIfNeeded(path: Path, filterOpt: Option[PathFilter]): Seq[String] = {
     filterOpt match {
       case Some(filter) =>
         val fs = path.getFileSystem(sc.hiveconf)
-        val filteredFiles = fs.listStatus(path, filter).map(_.getPath.toString)
-        filteredFiles.mkString(",")
-      case None => path.toString
+        fs.listStatus(path, filter).map(_.getPath.toString)
+      case None => Seq(path.toString)
     }
   }
 
@@ -270,10 +278,10 @@ class HadoopTableReader(
    */
   private def createHadoopRdd(
     tableDesc: TableDesc,
-    path: String,
+    paths: Seq[String],
     inputFormatClass: Class[InputFormat[Writable, Writable]]): RDD[Writable] = {
 
-    val initializeJobConfFunc = HadoopTableReader.initializeLocalJobConfFunc(path, tableDesc) _
+    val initializeJobConfFunc = HadoopTableReader.initializeLocalJobConfFunc(paths, tableDesc) _
 
     val rdd = new HadoopRDD(
       sc.sparkContext,
@@ -317,8 +325,8 @@ private[hive] object HadoopTableReader extends HiveInspectors with Logging {
    * Curried. After given an argument for 'path', the resulting JobConf => Unit closure is used to
    * instantiate a HadoopRDD.
    */
-  def initializeLocalJobConfFunc(path: String, tableDesc: TableDesc)(jobConf: JobConf) {
-    FileInputFormat.setInputPaths(jobConf, Seq[Path](new Path(path)): _*)
+  def initializeLocalJobConfFunc(paths: Seq[String], tableDesc: TableDesc)(jobConf: JobConf) {
+    FileInputFormat.setInputPaths(jobConf, paths.map { pathStr => new Path(pathStr) }: _*)
     if (tableDesc != null) {
       HiveTableUtil.configureJobPropertiesForStorageHandler(tableDesc, jobConf, true)
       Utilities.copyTableJobPropertiesToConf(tableDesc, jobConf)
@@ -336,6 +344,7 @@ private[hive] object HadoopTableReader extends HiveInspectors with Logging {
    *                             positions in the output schema
    * @param mutableRow A reusable `MutableRow` that should be filled
    * @param tableDeser Table Deserializer
+   * @param emptyStringsAsNulls whether to treat empty strings as nulls
    * @return An `Iterator[Row]` transformed from `iterator`
    */
   def fillObject(
@@ -343,7 +352,8 @@ private[hive] object HadoopTableReader extends HiveInspectors with Logging {
       rawDeser: Deserializer,
       nonPartitionKeyAttrs: Seq[(Attribute, Int)],
       mutableRow: MutableRow,
-      tableDeser: Deserializer): Iterator[InternalRow] = {
+      tableDeser: Deserializer,
+      emptyStringsAsNulls: Boolean): Iterator[InternalRow] = {
 
     val soi = if (rawDeser.getObjectInspector.equals(tableDeser.getObjectInspector)) {
       rawDeser.getObjectInspector.asInstanceOf[StructObjectInspector]
@@ -379,9 +389,30 @@ private[hive] object HadoopTableReader extends HiveInspectors with Logging {
           (value: Any, row: MutableRow, ordinal: Int) => row.setFloat(ordinal, oi.get(value))
         case oi: DoubleObjectInspector =>
           (value: Any, row: MutableRow, ordinal: Int) => row.setDouble(ordinal, oi.get(value))
+        case oi: HiveVarcharObjectInspector if emptyStringsAsNulls =>
+          (value: Any, row: MutableRow, ordinal: Int) => {
+            val strValue = UTF8String.fromString(oi.getPrimitiveJavaObject(value).getValue)
+            if (strValue == UTF8String.EMPTY_UTF8) {
+              row.update(ordinal, null)
+            } else {
+              row.update(ordinal, strValue)
+            }
+          }
         case oi: HiveVarcharObjectInspector =>
           (value: Any, row: MutableRow, ordinal: Int) =>
             row.update(ordinal, UTF8String.fromString(oi.getPrimitiveJavaObject(value).getValue))
+        case oi: StringObjectInspector if emptyStringsAsNulls =>
+          (value: Any, row: MutableRow, ordinal: Int) => {
+            val strValue = UTF8String.fromString(oi.getPrimitiveJavaObject(value))
+            if (strValue == UTF8String.EMPTY_UTF8) {
+              row.update(ordinal, null)
+            } else {
+              row.update(ordinal, strValue)
+            }
+          }
+        case oi: StringObjectInspector =>
+          (value: Any, row: MutableRow, ordinal: Int) =>
+            row.update(ordinal, UTF8String.fromString(oi.getPrimitiveJavaObject(value)))
         case oi: HiveCharObjectInspector =>
           (value: Any, row: MutableRow, ordinal: Int) =>
             row.update(ordinal, UTF8String.fromString(oi.getPrimitiveJavaObject(value).getValue))
@@ -421,4 +452,19 @@ private[hive] object HadoopTableReader extends HiveInspectors with Logging {
       mutableRow: InternalRow
     }
   }
+}
+
+abstract class HadoopFileSelector {
+  /**
+   * Select files constituting a table from the given base path according to the client's custom
+   * algorithm. This is only applied to non-partitioned tables.
+   * @param tableName table name to select files for. This is the exact table name specified
+   *                  in the query, not a "preprocessed" file name returned by the user-defined
+   *                  function registered via [[HiveContext.setTableNamePreprocessor]].
+   * @param fs the filesystem containing the table
+   * @param basePath base path of the table in the filesystem
+   * @return a set of files, or [[None]] if the custom file selection algorithm does not apply
+   *         to this table.
+   */
+  def selectFiles(tableName: String, fs: FileSystem, basePath: Path): Option[Seq[Path]]
 }

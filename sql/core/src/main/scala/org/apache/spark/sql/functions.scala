@@ -2696,7 +2696,7 @@ object functions extends LegacyFunctions {
     */
   @deprecated("Use udf. This will be removed in Spark 2.0.", "1.5.0")
   def callUDF(f: Function0[_], returnType: DataType): Column = withExpr {
-    ScalaUDF(f, returnType, Seq())
+    ScalaUDF(f, returnType, Seq(), name = "Function0")
   }
 
   /**
@@ -2710,7 +2710,7 @@ object functions extends LegacyFunctions {
     */
   @deprecated("Use udf. This will be removed in Spark 2.0.", "1.5.0")
   def callUDF(f: Function1[_, _], returnType: DataType, arg1: Column): Column = withExpr {
-    ScalaUDF(f, returnType, Seq(arg1.expr))
+    ScalaUDF(f, returnType, Seq(arg1.expr), name = "Function1")
   }
 
   /**
@@ -2724,7 +2724,7 @@ object functions extends LegacyFunctions {
     */
   @deprecated("Use udf. This will be removed in Spark 2.0.", "1.5.0")
   def callUDF(f: Function2[_, _, _], returnType: DataType, arg1: Column, arg2: Column): Column = withExpr {
-    ScalaUDF(f, returnType, Seq(arg1.expr, arg2.expr))
+    ScalaUDF(f, returnType, Seq(arg1.expr, arg2.expr), name = "Function2")
   }
 
   /**
@@ -2738,7 +2738,7 @@ object functions extends LegacyFunctions {
     */
   @deprecated("Use udf. This will be removed in Spark 2.0.", "1.5.0")
   def callUDF(f: Function3[_, _, _, _], returnType: DataType, arg1: Column, arg2: Column, arg3: Column): Column = withExpr {
-    ScalaUDF(f, returnType, Seq(arg1.expr, arg2.expr, arg3.expr))
+    ScalaUDF(f, returnType, Seq(arg1.expr, arg2.expr, arg3.expr), name = "Function3")
   }
 
   /**
@@ -2752,7 +2752,7 @@ object functions extends LegacyFunctions {
     */
   @deprecated("Use udf. This will be removed in Spark 2.0.", "1.5.0")
   def callUDF(f: Function4[_, _, _, _, _], returnType: DataType, arg1: Column, arg2: Column, arg3: Column, arg4: Column): Column = withExpr {
-    ScalaUDF(f, returnType, Seq(arg1.expr, arg2.expr, arg3.expr, arg4.expr))
+    ScalaUDF(f, returnType, Seq(arg1.expr, arg2.expr, arg3.expr, arg4.expr), name = "Function4")
   }
 
   /**
@@ -2766,7 +2766,7 @@ object functions extends LegacyFunctions {
     */
   @deprecated("Use udf. This will be removed in Spark 2.0.", "1.5.0")
   def callUDF(f: Function5[_, _, _, _, _, _], returnType: DataType, arg1: Column, arg2: Column, arg3: Column, arg4: Column, arg5: Column): Column = withExpr {
-    ScalaUDF(f, returnType, Seq(arg1.expr, arg2.expr, arg3.expr, arg4.expr, arg5.expr))
+    ScalaUDF(f, returnType, Seq(arg1.expr, arg2.expr, arg3.expr, arg4.expr, arg5.expr), name = "Function5")
   }
 
   /**
@@ -2780,7 +2780,7 @@ object functions extends LegacyFunctions {
     */
   @deprecated("Use udf. This will be removed in Spark 2.0.", "1.5.0")
   def callUDF(f: Function6[_, _, _, _, _, _, _], returnType: DataType, arg1: Column, arg2: Column, arg3: Column, arg4: Column, arg5: Column, arg6: Column): Column = withExpr {
-    ScalaUDF(f, returnType, Seq(arg1.expr, arg2.expr, arg3.expr, arg4.expr, arg5.expr, arg6.expr))
+    ScalaUDF(f, returnType, Seq(arg1.expr, arg2.expr, arg3.expr, arg4.expr, arg5.expr, arg6.expr), name = "Function6")
   }
 
   /**
@@ -2794,7 +2794,7 @@ object functions extends LegacyFunctions {
     */
   @deprecated("Use udf. This will be removed in Spark 2.0.", "1.5.0")
   def callUDF(f: Function7[_, _, _, _, _, _, _, _], returnType: DataType, arg1: Column, arg2: Column, arg3: Column, arg4: Column, arg5: Column, arg6: Column, arg7: Column): Column = withExpr {
-    ScalaUDF(f, returnType, Seq(arg1.expr, arg2.expr, arg3.expr, arg4.expr, arg5.expr, arg6.expr, arg7.expr))
+    ScalaUDF(f, returnType, Seq(arg1.expr, arg2.expr, arg3.expr, arg4.expr, arg5.expr, arg6.expr, arg7.expr), name = "Function7")
   }
 
   /**
@@ -2808,7 +2808,7 @@ object functions extends LegacyFunctions {
     */
   @deprecated("Use udf. This will be removed in Spark 2.0.", "1.5.0")
   def callUDF(f: Function8[_, _, _, _, _, _, _, _, _], returnType: DataType, arg1: Column, arg2: Column, arg3: Column, arg4: Column, arg5: Column, arg6: Column, arg7: Column, arg8: Column): Column = withExpr {
-    ScalaUDF(f, returnType, Seq(arg1.expr, arg2.expr, arg3.expr, arg4.expr, arg5.expr, arg6.expr, arg7.expr, arg8.expr))
+    ScalaUDF(f, returnType, Seq(arg1.expr, arg2.expr, arg3.expr, arg4.expr, arg5.expr, arg6.expr, arg7.expr, arg8.expr), name = "Function8")
   }
 
   /**
@@ -2822,7 +2822,7 @@ object functions extends LegacyFunctions {
     */
   @deprecated("Use udf. This will be removed in Spark 2.0.", "1.5.0")
   def callUDF(f: Function9[_, _, _, _, _, _, _, _, _, _], returnType: DataType, arg1: Column, arg2: Column, arg3: Column, arg4: Column, arg5: Column, arg6: Column, arg7: Column, arg8: Column, arg9: Column): Column = withExpr {
-    ScalaUDF(f, returnType, Seq(arg1.expr, arg2.expr, arg3.expr, arg4.expr, arg5.expr, arg6.expr, arg7.expr, arg8.expr, arg9.expr))
+    ScalaUDF(f, returnType, Seq(arg1.expr, arg2.expr, arg3.expr, arg4.expr, arg5.expr, arg6.expr, arg7.expr, arg8.expr, arg9.expr), name = "Function9")
   }
 
   /**
@@ -2836,7 +2836,7 @@ object functions extends LegacyFunctions {
     */
   @deprecated("Use udf. This will be removed in Spark 2.0.", "1.5.0")
   def callUDF(f: Function10[_, _, _, _, _, _, _, _, _, _, _], returnType: DataType, arg1: Column, arg2: Column, arg3: Column, arg4: Column, arg5: Column, arg6: Column, arg7: Column, arg8: Column, arg9: Column, arg10: Column): Column = withExpr {
-    ScalaUDF(f, returnType, Seq(arg1.expr, arg2.expr, arg3.expr, arg4.expr, arg5.expr, arg6.expr, arg7.expr, arg8.expr, arg9.expr, arg10.expr))
+    ScalaUDF(f, returnType, Seq(arg1.expr, arg2.expr, arg3.expr, arg4.expr, arg5.expr, arg6.expr, arg7.expr, arg8.expr, arg9.expr, arg10.expr), name = "Function10")
   }
 
   // scalastyle:on

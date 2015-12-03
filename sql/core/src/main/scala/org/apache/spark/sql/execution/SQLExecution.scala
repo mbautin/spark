@@ -89,17 +89,59 @@ private[sql] object SQLExecution {
   }
 
   /**
-   * Wrap an action with a known executionId. When running a different action in a different
-   * thread from the original one, this method can be used to connect the Spark jobs in this action
-   * with the known executionId, e.g., `BroadcastHashJoin.broadcastFuture`.
+   * Captures a subset of local properties from the given Spark context that must be set for jobs
+   * running as part of the same SQL query in a different thread.
+   * @param sc Spark context
+   * @return a map of captured local property keys to their values. The values can be null.
    */
-  def withExecutionId[T](sc: SparkContext, executionId: String)(body: => T): T = {
-    val oldExecutionId = sc.getLocalProperty(SQLExecution.EXECUTION_ID_KEY)
+  def captureLocalProperties(sc: SparkContext): Map[String, String] = {
+    Seq(
+      SQLExecution.EXECUTION_ID_KEY,
+      SparkContext.SPARK_JOB_DESCRIPTION,
+      SparkContext.SPARK_JOB_GROUP_ID,
+      SparkContext.SPARK_JOB_INTERRUPT_ON_CANCEL,
+      "spark.scheduler.pool"
+    ).map { key =>
+      // this can also be null, which means the local property will be unset
+      key -> sc.getLocalProperty(key)
+    }.toMap
+  }
+
+  /**
+   * Restores captured local properties into the given Spark context. This is meant to be done in a
+   * different thread than the one where the local properties were captured.
+   * @param sc Spark context
+   * @param capturedLocalProperties a map produced by [[captureLocalProperties]]
+   */
+  private[this] def setCapturedLocalProperties(
+      sc: SparkContext,
+      capturedLocalProperties: Map[String, String]) = {
+    capturedLocalProperties.foreach { case (k, v) =>
+      sc.setLocalProperty(k, v)
+    }
+  }
+
+  /**
+   * Runs the given code block with local properties set according to the given map constructed from
+   * Spark local properties in a different thread. This is useful when running an action in a
+   * different thread from the original one.
+   *
+   * @param sc Spark context
+   * @param capturedLocalProperties local properties captured in another thread using
+   *                                [[withCapturedLocalProperties]]
+   * @param body a code block
+   * @tparam T return type
+   * @return the result of the code block
+   */
+  def withCapturedLocalProperties[T](
+      sc: SparkContext,
+      capturedLocalProperties: Map[String, String])(body: => T): T = {
+    val oldCapturedLocalProperties = captureLocalProperties(sc)
     try {
-      sc.setLocalProperty(SQLExecution.EXECUTION_ID_KEY, executionId)
+      setCapturedLocalProperties(sc, capturedLocalProperties)
       body
     } finally {
-      sc.setLocalProperty(SQLExecution.EXECUTION_ID_KEY, oldExecutionId)
+      setCapturedLocalProperties(sc, oldCapturedLocalProperties)
     }
   }
 }

@@ -36,12 +36,13 @@ case class ScalaUDF(
     function: AnyRef,
     dataType: DataType,
     children: Seq[Expression],
-    inputTypes: Seq[DataType] = Nil)
+    inputTypes: Seq[DataType] = Nil,
+    name: String)
   extends Expression with ImplicitCastInputTypes {
 
   override def nullable: Boolean = true
 
-  override def toString: String = s"UDF(${children.mkString(",")})"
+  override def toString: String = s"${name}(${children.mkString(",")})"
 
   // scalastyle:off
 

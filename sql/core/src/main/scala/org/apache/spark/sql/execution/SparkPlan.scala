@@ -28,6 +28,7 @@ import org.apache.spark.sql.catalyst.{CatalystTypeConverters, InternalRow}
 import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.catalyst.expressions.codegen._
 import org.apache.spark.sql.catalyst.plans.QueryPlan
+import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans.physical._
 import org.apache.spark.sql.execution.metric.{LongSQLMetric, SQLMetric}
 import org.apache.spark.sql.types.DataType
@@ -47,6 +48,9 @@ abstract class SparkPlan extends QueryPlan[SparkPlan] with Logging with Serializ
 
   protected def sparkContext = sqlContext.sparkContext
 
+  @transient
+  private[this] var _logicalPlan: Option[LogicalPlan] = None
+
   // sqlContext will be null when we are being deserialized on the slaves.  In this instance
   // the value of subexpressionEliminationEnabled will be set by the desserializer after the
   // constructor has run.
@@ -61,10 +65,26 @@ abstract class SparkPlan extends QueryPlan[SparkPlan] with Logging with Serializ
    */
   private val prepareCalled = new AtomicBoolean(false)
 
+  def withLogicalPlan(logicalPlanOpt: Option[LogicalPlan]): SparkPlan = {
+    _logicalPlan = logicalPlanOpt
+    this
+  }
+
+  def withLogicalPlan(logicalPlan: LogicalPlan): SparkPlan = {
+    _logicalPlan = Some(logicalPlan)
+    this
+  }
+
+  def logicalPlan: Option[LogicalPlan] = _logicalPlan
+
   /** Overridden make copy also propogates sqlContext to copied plan. */
   override def makeCopy(newArgs: Array[AnyRef]): SparkPlan = {
     SQLContext.setActive(sqlContext)
-    super.makeCopy(newArgs)
+    super.makeCopy(newArgs).withLogicalPlan(logicalPlan)
+  }
+
+  override def withNewChildren(newChildren: Seq[SparkPlan]): SparkPlan = {
+    super.withNewChildren(newChildren).withLogicalPlan(logicalPlan)
   }
 
   /**
@@ -192,7 +212,7 @@ abstract class SparkPlan extends QueryPlan[SparkPlan] with Logging with Serializ
         // If we didn't find any rows after the first iteration, just try all partitions next.
         // Otherwise, interpolate the number of partitions we need to try, but overestimate it
         // by 50%.
-        if (buf.size == 0) {
+        if (buf.isEmpty) {
           numPartsToTry = totalParts - 1
         } else {
           numPartsToTry = (1.5 * n * partsScanned / buf.size).toInt

@@ -377,14 +377,24 @@ private[hive] class HiveMetastoreCatalog(val client: ClientInterface, hive: Hive
     client.getTableOption(dbName, tblName).isDefined
   }
 
+  private[this] var tableNamePreprocessor: (String) => String = identity
+
+  def setTableNamePreprocessor(newTableNamePreprocessor: (String) => String): Unit = {
+    tableNamePreprocessor = newTableNamePreprocessor
+  }
+
   override def lookupRelation(
       tableIdent: TableIdentifier,
       alias: Option[String]): LogicalPlan = {
+    val rawTableName = tableIdent.table
+    val tblNameInMetastore = tableNamePreprocessor(rawTableName)
     val qualifiedTableName = getQualifiedTableName(tableIdent)
-    val table = client.getTable(qualifiedTableName.database, qualifiedTableName.name)
+    val table = client.getTable(qualifiedTableName.database, tblNameInMetastore)
+      .withTableName(qualifiedTableName.name)
 
     if (table.properties.get("spark.sql.sources.provider").isDefined) {
-      val dataSourceTable = cachedDataSourceTables(qualifiedTableName)
+      val dataSourceTable =
+        cachedDataSourceTables(qualifiedTableName.copy(name = tblNameInMetastore.toLowerCase))
       val tableWithQualifiers = Subquery(qualifiedTableName.name, dataSourceTable)
       // Then, if alias is specified, wrap the table with a Subquery using the alias.
       // Otherwise, wrap the table with a Subquery using the table name.

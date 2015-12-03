@@ -190,17 +190,29 @@ class AnalysisSuite extends AnalysisTest {
     }
 
     // non-primitive parameters do not need special null handling
-    val udf1 = ScalaUDF((s: String) => "x", StringType, string :: Nil)
+    val udf1 = ScalaUDF(
+      (s: String) => "x",
+      StringType,
+      string :: Nil,
+      name = "udf1")
     val expected1 = udf1
     checkUDF(udf1, expected1)
 
     // only primitive parameter needs special null handling
-    val udf2 = ScalaUDF((s: String, d: Double) => "x", StringType, string :: double :: Nil)
+    val udf2 = ScalaUDF(
+      (s: String, d: Double) => "x",
+      StringType,
+      string :: double :: Nil,
+      name = "udf2")
     val expected2 = If(IsNull(double), nullResult, udf2)
     checkUDF(udf2, expected2)
 
     // special null handling should apply to all primitive parameters
-    val udf3 = ScalaUDF((s: Short, d: Double) => "x", StringType, short :: double :: Nil)
+    val udf3 = ScalaUDF(
+      (s: Short, d: Double) => "x",
+      StringType,
+      short :: double :: Nil,
+      name = "udf3")
     val expected3 = If(
       IsNull(short) || IsNull(double),
       nullResult,
@@ -212,7 +224,8 @@ class AnalysisSuite extends AnalysisTest {
     val udf4 = ScalaUDF(
       (s: Short, d: Double) => "x",
       StringType,
-      short :: double.withNullability(false) :: Nil)
+      short :: double.withNullability(false) :: Nil,
+      name = "udf4")
     val expected4 = If(
       IsNull(short),
       nullResult,
