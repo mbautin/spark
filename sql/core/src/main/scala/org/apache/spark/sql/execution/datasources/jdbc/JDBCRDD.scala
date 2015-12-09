@@ -17,7 +17,7 @@
 
 package org.apache.spark.sql.execution.datasources.jdbc
 
-import java.sql.{Connection, DriverManager, ResultSet, ResultSetMetaData, SQLException}
+import java.sql.{Connection, Date, DriverManager, ResultSet, ResultSetMetaData, SQLException, Timestamp}
 import java.util.Properties
 
 import org.apache.commons.lang3.StringUtils
@@ -263,6 +263,8 @@ private[sql] class JDBCRDD(
    */
   private def compileValue(value: Any): Any = value match {
     case stringValue: String => s"'${escapeSql(stringValue)}'"
+    case timestampValue: Timestamp => "'" + timestampValue + "'"
+    case dateValue: Date => "'" + dateValue + "'"
     case _ => value
   }
 
@@ -465,6 +467,7 @@ private[sql] class JDBCRDD(
       } catch {
         case e: Exception => logWarning("Exception closing connection", e)
       }
+      closed = true
     }
 
     override def hasNext: Boolean = {

@@ -300,6 +300,14 @@ class DateTimeUtilsSuite extends SparkFunSuite {
       UTF8String.fromString("2015-03-18T12:03.17-0:70")).isEmpty)
     assert(stringToTimestamp(
       UTF8String.fromString("2015-03-18T12:03.17-1:0:0")).isEmpty)
+
+    // Truncating the fractional seconds
+    c = Calendar.getInstance(TimeZone.getTimeZone("GMT+00:00"))
+    c.set(2015, 2, 18, 12, 3, 17)
+    c.set(Calendar.MILLISECOND, 0)
+    assert(stringToTimestamp(
+      UTF8String.fromString("2015-03-18T12:03:17.123456789+0:00")).get ===
+        c.getTimeInMillis * 1000 + 123456)
   }
 
   test("hours") {
@@ -326,7 +334,7 @@ class DateTimeUtilsSuite extends SparkFunSuite {
     assert(getSeconds(c.getTimeInMillis * 1000) === 9)
   }
 
-  test("hours / miniute / seconds") {
+  test("hours / minutes / seconds") {
     Seq(Timestamp.valueOf("2015-06-11 10:12:35.789"),
       Timestamp.valueOf("2015-06-11 20:13:40.789"),
       Timestamp.valueOf("1900-06-11 12:14:50.789"),
