@@ -326,6 +326,11 @@ object DateTimeUtils {
       return None
     }
 
+    // Instead of return None, we truncate the fractional seconds to prevent inserting NULL
+    if (segments(6) > 999999) {
+      segments(6) = segments(6).toString.take(6).toInt
+    }
+
     if (segments(3) < 0 || segments(3) > 23 || segments(4) < 0 || segments(4) > 59 ||
         segments(5) < 0 || segments(5) > 59 || segments(6) < 0 || segments(6) > 999999 ||
         segments(7) < 0 || segments(7) > 23 || segments(8) < 0 || segments(8) > 59) {
@@ -402,16 +407,19 @@ object DateTimeUtils {
   /**
    * Returns the microseconds since year zero (-17999) from microseconds since epoch.
    */
-  def absoluteMicroSecond(microsec: SQLTimestamp): SQLTimestamp = {
+  private def absoluteMicroSecond(microsec: SQLTimestamp): SQLTimestamp = {
     microsec + toYearZero * MICROS_PER_DAY
+  }
+
+  private def localTimestamp(microsec: SQLTimestamp): SQLTimestamp = {
+    absoluteMicroSecond(microsec) + defaultTimeZone.getOffset(microsec / 1000) * 1000L
   }
 
   /**
    * Returns the hour value of a given timestamp value. The timestamp is expressed in microseconds.
    */
   def getHours(microsec: SQLTimestamp): Int = {
-    val localTs = absoluteMicroSecond(microsec) + defaultTimeZone.getOffset(microsec / 1000) * 1000L
-    ((localTs / MICROS_PER_SECOND / 3600) % 24).toInt
+    ((localTimestamp(microsec) / MICROS_PER_SECOND / 3600) % 24).toInt
   }
 
   /**
@@ -419,8 +427,7 @@ object DateTimeUtils {
    * microseconds.
    */
   def getMinutes(microsec: SQLTimestamp): Int = {
-    val localTs = absoluteMicroSecond(microsec) + defaultTimeZone.getOffset(microsec / 1000) * 1000L
-    ((localTs / MICROS_PER_SECOND / 60) % 60).toInt
+    ((localTimestamp(microsec) / MICROS_PER_SECOND / 60) % 60).toInt
   }
 
   /**
@@ -428,7 +435,7 @@ object DateTimeUtils {
    * microseconds.
    */
   def getSeconds(microsec: SQLTimestamp): Int = {
-    ((absoluteMicroSecond(microsec) / MICROS_PER_SECOND) % 60).toInt
+    ((localTimestamp(microsec) / MICROS_PER_SECOND) % 60).toInt
   }
 
   private[this] def isLeapYear(year: Int): Boolean = {
