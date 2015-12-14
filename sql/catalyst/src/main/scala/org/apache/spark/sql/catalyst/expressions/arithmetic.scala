@@ -514,3 +514,47 @@ case class Pmod(left: Expression, right: Expression) extends BinaryArithmetic {
     if (r.compare(Decimal.ZERO) < 0) {(r + n) % n} else r
   }
 }
+
+case class Fmod(left: Expression, right: Expression)
+  extends BinaryExpression with Serializable with ImplicitCastInputTypes {
+
+  override def inputTypes: Seq[DataType] = Seq(DoubleType, DoubleType)
+
+  override def toString: String = s"fmod($left, $right)"
+
+  override def dataType: DataType = DoubleType
+
+  override def eval(input: InternalRow): Any = {
+    val input2 = right.eval(input)
+    if (input2 == null || input2 == 0) {
+      null
+    } else {
+      val input1 = left.eval(input)
+      if (input1 == null) {
+        null
+      } else {
+        input1.asInstanceOf[Double] % input2.asInstanceOf[Double]
+      }
+    }
+  }
+
+  override def genCode(ctx: CodeGenContext, ev: GeneratedExpressionCode): String = {
+    val eval1 = left.gen(ctx)
+    val eval2 = right.gen(ctx)
+    s"""
+      ${eval2.code}
+      boolean ${ev.isNull} = ${eval2.isNull} || ${eval2.value} == 0;
+
+      ${ctx.javaType(dataType)} ${ev.value} = ${ctx.defaultValue(dataType)};
+      if (!${ev.isNull}) {
+        ${eval1.code}
+        if (!${eval1.isNull}) {
+          ${ev.value} = ${eval1.value} % ${eval2.value};
+        } else {
+          ${ev.isNull} = true;
+        }
+      }
+    """
+  }
+
+}

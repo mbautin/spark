@@ -1816,6 +1816,15 @@ object functions extends LegacyFunctions {
    */
   def toRadians(columnName: String): Column = toRadians(Column(columnName))
 
+  /**
+   * Computes a floating-point remaineder value. The result has the same sign as the denominator.
+   *
+   * @group math_funcs
+   */
+  def fmod(numerator: Column, denominator: Column): Column = withExpr {
+    Fmod(numerator.expr, denominator.expr)
+  }
+
   //////////////////////////////////////////////////////////////////////////////////////////////
   // Misc functions
   //////////////////////////////////////////////////////////////////////////////////////////////
