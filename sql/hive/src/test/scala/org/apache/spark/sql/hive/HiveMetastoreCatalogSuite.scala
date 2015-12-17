@@ -20,6 +20,7 @@ package org.apache.spark.sql.hive
 import java.io.File
 
 import org.apache.spark.SparkFunSuite
+import org.apache.hadoop.fs.{Path, FileSystem}
 import org.apache.spark.sql.hive.client.{ExternalTable, ManagedTable}
 import org.apache.spark.sql.hive.test.TestHiveSingleton
 import org.apache.spark.sql.test.{ExamplePointUDT, SQLTestUtils}
@@ -46,6 +47,87 @@ class HiveMetastoreCatalogSuite extends SparkFunSuite with TestHiveSingleton {
     val df = hiveContext.sql("SELECT * FROM src")
     logInfo(df.queryExecution.toString)
     df.as('a).join(df.as('b), $"a.key" === $"b.key")
+  }
+
+}
+
+class ParquetLocationSelectionSuite extends QueryTest with SQLTestUtils with TestHiveSingleton {
+  import hiveContext._
+
+  val hmc = new HiveMetastoreCatalog(null, hiveContext)
+  // ensuring temp directories
+  val baseDir = {
+    val base = File.createTempFile("selectParquetLocationDirectories", "1", hiveFilesTemp)
+    base.delete()
+    base.mkdirs()
+    base
+  }
+
+  test(s"With Selector selecting from ${baseDir.toString}") {
+    val fullpath = { (somewhere: String, sometable: String) =>
+      s"${baseDir.toString}/$somewhere/$sometable"
+    }
+
+    hiveContext.setHadoopFileSelector(new HadoopFileSelector() {
+      override def selectFiles(
+          sometable: String,
+          fs: FileSystem,
+          somewhere: Path): Option[Seq[Path]] = {
+        Some(Seq(new Path(fullpath(somewhere.toString, sometable))))
+      }
+    })
+
+    // ensure directory existence for somewhere/sometable
+    val somewhereSometable = new File(fullpath("somewhere", "sometable"))
+    somewhereSometable.mkdirs()
+    // somewhere/sometable is a directory => will be selected
+    assertResult(Seq(fullpath("somewhere", "sometable"))) {
+      hmc.selectParquetLocationDirectories("sometable", Option("somewhere"))
+    }
+
+    // ensure file existence for somewhere/sometable
+    somewhereSometable.delete()
+    somewhereSometable.createNewFile()
+    // somewhere/sometable is a file => will not be selected
+    assertResult(Seq("somewhere")) {
+      hmc.selectParquetLocationDirectories("otherplace", Option("somewhere"))
+    }
+
+    // no location specified, none selected
+    assertResult(Seq(null)){
+      hmc.selectParquetLocationDirectories("sometable", Option(null))
+    }
+  }
+
+  test("With Selector selecting None") {
+    hiveContext.setHadoopFileSelector(new HadoopFileSelector() {
+      override def selectFiles(
+          tableName: String,
+          fs: FileSystem,
+          basePath: Path): Option[Seq[Path]] = None
+    })
+
+    // none selected
+    assertResult(Seq("somewhere")) {
+      hmc.selectParquetLocationDirectories("sometable", Option("somewhere"))
+    }
+    // none selected
+    assertResult(Seq(null)) {
+      hmc.selectParquetLocationDirectories("sometable", Option(null))
+    }
+  }
+
+  test("Without Selector") {
+    hiveContext.unsetHadoopFileSelector()
+
+    // none selected
+    assertResult(Seq("somewhere")) {
+      hmc.selectParquetLocationDirectories("sometable", Option("somewhere"))
+    }
+    // none selected
+    assertResult(Seq(null)) {
+      hmc.selectParquetLocationDirectories("sometable", Option(null))
+    }
   }
 }
 
