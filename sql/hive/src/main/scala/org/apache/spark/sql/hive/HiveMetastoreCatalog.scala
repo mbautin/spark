@@ -17,9 +17,6 @@
 
 package org.apache.spark.sql.hive
 
-import scala.collection.JavaConversions._
-import scala.collection.mutable
-
 import com.google.common.base.Objects
 import com.google.common.cache.{CacheBuilder, CacheLoader, LoadingCache}
 import org.apache.hadoop.fs.Path
@@ -29,7 +26,6 @@ import org.apache.hadoop.hive.metastore.Warehouse
 import org.apache.hadoop.hive.metastore.api.FieldSchema
 import org.apache.hadoop.hive.ql.metadata._
 import org.apache.hadoop.hive.ql.plan.TableDesc
-
 import org.apache.spark.Logging
 import org.apache.spark.sql.catalyst.analysis.{Catalog, MultiInstanceRelation, OverrideCatalog}
 import org.apache.spark.sql.catalyst.expressions._
@@ -44,6 +40,9 @@ import org.apache.spark.sql.hive.client._
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{AnalysisException, SQLContext, SaveMode}
+
+import scala.collection.JavaConversions._
+import scala.collection.mutable
 
 private[hive] case class HiveSerDe(
     inputFormat: Option[String] = None,
@@ -508,7 +507,9 @@ private[hive] class HiveMetastoreCatalog(val client: ClientInterface, hive: Hive
 
       parquetRelation
     } else {
-      val paths = Seq(metastoreRelation.hiveQlTable.getDataLocation.toString)
+      val paths = selectParquetLocationDirectories(
+        metastoreRelation.tableName,
+        Option(metastoreRelation.hiveQlTable.getDataLocation.toString))
 
       val cached = getCached(tableIdentifier, paths, metastoreSchema, None)
       val parquetRelation = cached.getOrElse {
@@ -523,6 +524,36 @@ private[hive] class HiveMetastoreCatalog(val client: ClientInterface, hive: Hive
 
     result.copy(expectedOutputAttributes = Some(metastoreRelation.output))
   }
+
+  /**
+   * Customizing the data directory selection by using hadoopFileSelector.
+   *
+   * The value of locationOpt will be returned as single element sequence if
+   * 1. the hadoopFileSelector is not defined or
+   * 2. locationOpt is not defined or
+   * 3. the selected directories is empty.
+   *
+   * Otherwise, the non-empty selected directories will be returned.
+   */
+  private[hive] def selectParquetLocationDirectories(
+    tableName: String,
+    locationOpt: Option[String]): Seq[String] = {
+
+    val inputPaths: Option[Seq[String]] = for {
+      selector <- hive.hadoopFileSelector
+      l <- locationOpt
+      location = new Path(l)
+      fs = location.getFileSystem(hive.hiveconf)
+      selectedPaths <- selector.selectFiles(tableName, fs, location)
+      selectedDir = for {
+        selectedPath <- selectedPaths
+        if selectedPath.getFileSystem(hive.hiveconf).isDirectory(selectedPath)
+      } yield selectedPath.toString
+      if !selectedDir.isEmpty
+    } yield selectedDir
+    inputPaths.getOrElse(Seq(locationOpt.getOrElse(null)))
+  }
+
 
   override def getTables(databaseName: Option[String]): Seq[(String, Boolean)] = {
     val db = databaseName.getOrElse(client.currentDatabase)
