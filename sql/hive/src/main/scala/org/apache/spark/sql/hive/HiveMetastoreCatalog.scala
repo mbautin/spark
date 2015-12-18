@@ -17,6 +17,9 @@
 
 package org.apache.spark.sql.hive
 
+import scala.collection.JavaConversions._
+import scala.collection.mutable
+
 import com.google.common.base.Objects
 import com.google.common.cache.{CacheBuilder, CacheLoader, LoadingCache}
 import org.apache.hadoop.fs.Path
@@ -26,6 +29,7 @@ import org.apache.hadoop.hive.metastore.Warehouse
 import org.apache.hadoop.hive.metastore.api.FieldSchema
 import org.apache.hadoop.hive.ql.metadata._
 import org.apache.hadoop.hive.ql.plan.TableDesc
+
 import org.apache.spark.Logging
 import org.apache.spark.sql.catalyst.analysis.{Catalog, MultiInstanceRelation, OverrideCatalog}
 import org.apache.spark.sql.catalyst.expressions._
@@ -40,9 +44,6 @@ import org.apache.spark.sql.hive.client._
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{AnalysisException, SQLContext, SaveMode}
-
-import scala.collection.JavaConversions._
-import scala.collection.mutable
 
 private[hive] case class HiveSerDe(
     inputFormat: Option[String] = None,
@@ -531,7 +532,7 @@ private[hive] class HiveMetastoreCatalog(val client: ClientInterface, hive: Hive
    * The value of locationOpt will be returned as single element sequence if
    * 1. the hadoopFileSelector is not defined or
    * 2. locationOpt is not defined or
-   * 3. the selected directories is empty.
+   * 3. the selected directories are empty.
    *
    * Otherwise, the non-empty selected directories will be returned.
    */
@@ -549,9 +550,9 @@ private[hive] class HiveMetastoreCatalog(val client: ClientInterface, hive: Hive
         selectedPath <- selectedPaths
         if selectedPath.getFileSystem(hive.hiveconf).isDirectory(selectedPath)
       } yield selectedPath.toString
-      if !selectedDir.isEmpty
+      if selectedDir.nonEmpty
     } yield selectedDir
-    inputPaths.getOrElse(Seq(locationOpt.getOrElse(null)))
+    inputPaths.getOrElse(Seq(locationOpt.orNull))
   }
 
 
