@@ -162,6 +162,7 @@ object FunctionRegistry {
     expression[Pow]("pow"),
     expression[Pow]("power"),
     expression[Pmod]("pmod"),
+    expression[Fmod]("fmod"),
     expression[UnaryPositive]("positive"),
     expression[Rint]("rint"),
     expression[Round]("round"),
