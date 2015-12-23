@@ -490,7 +490,9 @@ private[hive] class HiveMetastoreCatalog(val client: ClientInterface, hive: Hive
 
       parquetRelation
     } else {
-      val paths = Seq(metastoreRelation.hiveQlTable.getDataLocation.toString)
+      val paths = selectParquetLocationDirectories(
+        metastoreRelation.tableName,
+        Option(metastoreRelation.hiveQlTable.getDataLocation.toString))
 
       val cached = getCached(tableIdentifier, paths, metastoreSchema, None)
       val parquetRelation = cached.getOrElse {
@@ -505,6 +507,36 @@ private[hive] class HiveMetastoreCatalog(val client: ClientInterface, hive: Hive
 
     result.copy(expectedOutputAttributes = Some(metastoreRelation.output))
   }
+
+  /**
+   * Customizing the data directory selection by using hadoopFileSelector.
+   *
+   * The value of locationOpt will be returned as single element sequence if
+   * 1. the hadoopFileSelector is not defined or
+   * 2. locationOpt is not defined or
+   * 3. the selected directories are empty.
+   *
+   * Otherwise, the non-empty selected directories will be returned.
+   */
+  private[hive] def selectParquetLocationDirectories(
+    tableName: String,
+    locationOpt: Option[String]): Seq[String] = {
+
+    val inputPaths: Option[Seq[String]] = for {
+      selector <- hive.hadoopFileSelector
+      l <- locationOpt
+      location = new Path(l)
+      fs = location.getFileSystem(hive.hiveconf)
+      selectedPaths <- selector.selectFiles(tableName, fs, location)
+      selectedDir = for {
+        selectedPath <- selectedPaths
+        if selectedPath.getFileSystem(hive.hiveconf).isDirectory(selectedPath)
+      } yield selectedPath.toString
+      if selectedDir.nonEmpty
+    } yield selectedDir
+    inputPaths.getOrElse(Seq(locationOpt.orNull))
+  }
+
 
   override def getTables(databaseName: Option[String]): Seq[(String, Boolean)] = {
     val db = databaseName.getOrElse(client.currentDatabase)
