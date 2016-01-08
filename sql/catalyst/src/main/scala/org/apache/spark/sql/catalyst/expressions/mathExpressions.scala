@@ -620,7 +620,7 @@ case class Logarithm(left: Expression, right: Expression)
 case class Round(child: Expression, scale: Expression)
   extends BinaryExpression with ImplicitCastInputTypes {
 
-  import BigDecimal.RoundingMode.HALF_UP
+  import BigDecimal.RoundingMode.HALF_EVEN
 
   def this(child: Expression) = this(child, Literal(0))
 
@@ -679,26 +679,26 @@ case class Round(child: Expression, scale: Expression)
         val decimal = input1.asInstanceOf[Decimal]
         if (decimal.changePrecision(decimal.precision, _scale)) decimal else null
       case ByteType =>
-        BigDecimal(input1.asInstanceOf[Byte]).setScale(_scale, HALF_UP).toByte
+        BigDecimal(input1.asInstanceOf[Byte]).setScale(_scale, HALF_EVEN).toByte
       case ShortType =>
-        BigDecimal(input1.asInstanceOf[Short]).setScale(_scale, HALF_UP).toShort
+        BigDecimal(input1.asInstanceOf[Short]).setScale(_scale, HALF_EVEN).toShort
       case IntegerType =>
-        BigDecimal(input1.asInstanceOf[Int]).setScale(_scale, HALF_UP).toInt
+        BigDecimal(input1.asInstanceOf[Int]).setScale(_scale, HALF_EVEN).toInt
       case LongType =>
-        BigDecimal(input1.asInstanceOf[Long]).setScale(_scale, HALF_UP).toLong
+        BigDecimal(input1.asInstanceOf[Long]).setScale(_scale, HALF_EVEN).toLong
       case FloatType =>
         val f = input1.asInstanceOf[Float]
         if (f.isNaN || f.isInfinite) {
           f
         } else {
-          BigDecimal(f).setScale(_scale, HALF_UP).toFloat
+          BigDecimal(f).setScale(_scale, HALF_EVEN).toFloat
         }
       case DoubleType =>
         val d = input1.asInstanceOf[Double]
         if (d.isNaN || d.isInfinite) {
           d
         } else {
-          BigDecimal(d).setScale(_scale, HALF_UP).toDouble
+          BigDecimal(d).setScale(_scale, HALF_EVEN).toDouble
         }
     }
   }
@@ -718,7 +718,7 @@ case class Round(child: Expression, scale: Expression)
         if (_scale < 0) {
           s"""
           ${ev.primitive} = new java.math.BigDecimal(${ce.primitive}).
-            setScale(${_scale}, java.math.BigDecimal.ROUND_HALF_UP).byteValue();"""
+            setScale(${_scale}, java.math.BigDecimal.ROUND_HALF_EVEN).byteValue();"""
         } else {
           s"${ev.primitive} = ${ce.primitive};"
         }
@@ -726,7 +726,7 @@ case class Round(child: Expression, scale: Expression)
         if (_scale < 0) {
           s"""
           ${ev.primitive} = new java.math.BigDecimal(${ce.primitive}).
-            setScale(${_scale}, java.math.BigDecimal.ROUND_HALF_UP).shortValue();"""
+            setScale(${_scale}, java.math.BigDecimal.ROUND_HALF_EVEN).shortValue();"""
         } else {
           s"${ev.primitive} = ${ce.primitive};"
         }
@@ -734,7 +734,7 @@ case class Round(child: Expression, scale: Expression)
         if (_scale < 0) {
           s"""
           ${ev.primitive} = new java.math.BigDecimal(${ce.primitive}).
-            setScale(${_scale}, java.math.BigDecimal.ROUND_HALF_UP).intValue();"""
+            setScale(${_scale}, java.math.BigDecimal.ROUND_HALF_EVEN).intValue();"""
         } else {
           s"${ev.primitive} = ${ce.primitive};"
         }
@@ -742,7 +742,7 @@ case class Round(child: Expression, scale: Expression)
         if (_scale < 0) {
           s"""
           ${ev.primitive} = new java.math.BigDecimal(${ce.primitive}).
-            setScale(${_scale}, java.math.BigDecimal.ROUND_HALF_UP).longValue();"""
+            setScale(${_scale}, java.math.BigDecimal.ROUND_HALF_EVEN).longValue();"""
         } else {
           s"${ev.primitive} = ${ce.primitive};"
         }
@@ -760,7 +760,7 @@ case class Round(child: Expression, scale: Expression)
               ${ev.primitive} = ${ce.primitive};
             } else {
               ${ev.primitive} = java.math.BigDecimal.valueOf(${ce.primitive}).
-                setScale(${_scale}, java.math.BigDecimal.ROUND_HALF_UP).floatValue();
+                setScale(${_scale}, java.math.BigDecimal.ROUND_HALF_EVEN).floatValue();
             }"""
         }
       case DoubleType => // if child eval to NaN or Infinity, just return it.
@@ -777,7 +777,7 @@ case class Round(child: Expression, scale: Expression)
               ${ev.primitive} = ${ce.primitive};
             } else {
               ${ev.primitive} = java.math.BigDecimal.valueOf(${ce.primitive}).
-                setScale(${_scale}, java.math.BigDecimal.ROUND_HALF_UP).doubleValue();
+                setScale(${_scale}, java.math.BigDecimal.ROUND_HALF_EVEN).doubleValue();
             }"""
         }
     }
