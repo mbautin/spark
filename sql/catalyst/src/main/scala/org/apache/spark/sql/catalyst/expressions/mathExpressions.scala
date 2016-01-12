@@ -792,7 +792,7 @@ case class Round(child: Expression, scale: Expression)
               double timesTwo = ${ce.primitive} * 2;
               long timesTwoRounded = Math.round(timesTwo);
               if (timesTwo == timesTwoRounded) {
-                if ((timesTwo & 1) == 0) {
+                if ((timesTwoRounded & 1) == 0) {
                   ${ev.primitive} = timesTwo >> 1;
                 } else {
                   ${ev.primitive} = (timesTwo + (timesTwoRounded & 3) - 2) >> 1;
