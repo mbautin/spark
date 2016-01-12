@@ -795,7 +795,7 @@ case class Round(child: Expression, scale: Expression)
                 if ((timesTwoRounded & 1) == 0) {
                   ${ev.primitive} = timesTwoRounded >> 1;
                 } else {
-                  ${ev.primitive} = (timesTwo + (timesTwoRounded & 3) - 2) >> 1;
+                  ${ev.primitive} = (timesTwoRounded + (timesTwoRounded & 3) - 2) >> 1;
                 }
               } else {
                 ${ev.primitive} = Math.round(${ce.primitive});
