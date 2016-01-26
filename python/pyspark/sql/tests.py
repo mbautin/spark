@@ -360,9 +360,18 @@ class SQLTests(ReusedPySparkTestCase):
         df2 = self.sqlCtx.createDataFrame(rdd, samplingRatio=1.0)
         self.assertEqual(df.schema, df2.schema)
 
-        rdd = self.sc.parallelize(range(10)).map(lambda x: Row(a=x))
+        rdd = self.sc.parallelize(range(10)).map(lambda x: Row(a=x, b=None))
         df3 = self.sqlCtx.createDataFrame(rdd, df.schema)
         self.assertEqual(10, df3.count())
+
+    def test_create_dataframe_schema_mismatch(self):
+        input = [Row(a=1)]
+        rdd = self.sc.parallelize(range(3)).map(lambda i: Row(a=i))
+        schema = StructType([StructField("a", IntegerType()), StructField("b", StringType())])
+        df = self.sqlCtx.createDataFrame(rdd, schema)
+        message = ".*Input row doesn't have expected number of values required by the schema.*"
+        with self.assertRaisesRegexp(Exception, message):
+            df.show()
 
     def test_serialize_nested_array_and_map(self):
         d = [Row(l=[Row(a=1, b='s')], d={"key": Row(c=1.0, d="2")})]
