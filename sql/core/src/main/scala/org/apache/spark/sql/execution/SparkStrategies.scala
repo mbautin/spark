@@ -195,6 +195,22 @@ private[sql] abstract class SparkStrategies extends QueryPlanner[SparkPlan] {
           }.asInstanceOf[NamedExpression]
         }
 
+        var exprIdsInChild = Set[ExprId]()
+        child.transformAllExpressions {
+          case expr: NamedExpression =>
+            exprIdsInChild += expr.exprId
+            expr
+          case other => other
+        }
+
+        val namedGroupingExpressionsUnknownToChild =
+          namedGroupingExpressions.map(_._2).filterNot { ne => exprIdsInChild.contains(ne.exprId) }
+        val childWithExtraAliases = if (namedGroupingExpressionsUnknownToChild.isEmpty) {
+          child
+        } else {
+          logical.Project(child.output ++ namedGroupingExpressionsUnknownToChild, child)
+        }
+
         val aggregateOperator =
           if (aggregateExpressions.map(_.aggregateFunction).exists(!_.supportsPartial)) {
             if (functionsWithDistinct.nonEmpty) {
@@ -206,7 +222,7 @@ private[sql] abstract class SparkStrategies extends QueryPlanner[SparkPlan] {
                 aggregateExpressions,
                 aggregateFunctionToAttribute,
                 rewrittenResultExpressions,
-                planLater(child))
+                planLater(childWithExtraAliases))
             }
           } else if (functionsWithDistinct.isEmpty) {
             aggregate.Utils.planAggregateWithoutDistinct(
@@ -214,7 +230,7 @@ private[sql] abstract class SparkStrategies extends QueryPlanner[SparkPlan] {
               aggregateExpressions,
               aggregateFunctionToAttribute,
               rewrittenResultExpressions,
-              planLater(child))
+              planLater(childWithExtraAliases))
           } else {
             aggregate.Utils.planAggregateWithOneDistinct(
               namedGroupingExpressions.map(_._2),
@@ -222,7 +238,7 @@ private[sql] abstract class SparkStrategies extends QueryPlanner[SparkPlan] {
               functionsWithoutDistinct,
               aggregateFunctionToAttribute,
               rewrittenResultExpressions,
-              planLater(child))
+              planLater(childWithExtraAliases))
           }
 
         aggregateOperator
