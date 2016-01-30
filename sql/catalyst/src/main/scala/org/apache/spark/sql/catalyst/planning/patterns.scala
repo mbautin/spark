@@ -70,16 +70,20 @@ object PhysicalOperation extends PredicateHelper {
     }
 
   private def collectAliases(fields: Seq[Expression]): Map[Attribute, Expression] = fields.collect {
-    case a @ Alias(child, _) => a.toAttribute -> child
+    case a @ Alias(child, _) =>
+      // The reason for ".withQualifiers(Nil)" is that we don't want to require qualifiers to match
+      // in order to substitute an Alias. It is sufficient for ExprId and name to match.
+      a.toAttribute.withQualifiers(Nil) -> child
   }.toMap
 
   private def substitute(aliases: Map[Attribute, Expression])(expr: Expression): Expression = {
     expr.transform {
       case a @ Alias(ref: AttributeReference, name) =>
-        aliases.get(ref).map(Alias(_, name)(a.exprId, a.qualifiers)).getOrElse(a)
-
+        aliases.get(
+          ref.withQualifiers(Nil)).map(Alias(_, name)(a.exprId, a.qualifiers)).getOrElse(a)
       case a: AttributeReference =>
-        aliases.get(a).map(Alias(_, a.name)(a.exprId, a.qualifiers)).getOrElse(a)
+        aliases.get(
+          a.withQualifiers(Nil)).map(Alias(_, a.name)(a.exprId, a.qualifiers)).getOrElse(a)
     }
   }
 }
