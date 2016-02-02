@@ -326,7 +326,7 @@ class SQLTests(ReusedPySparkTestCase):
 
     def test_basic_functions(self):
         rdd = self.sc.parallelize(['{"foo":"bar"}', '{"foo":"baz"}'])
-        df = self.sqlCtx.jsonRDD(rdd)
+        df = self.sqlCtx.read.json(rdd)
         df.count()
         df.collect()
         df.schema
@@ -345,7 +345,7 @@ class SQLTests(ReusedPySparkTestCase):
         df.collect()
 
     def test_apply_schema_to_row(self):
-        df = self.sqlCtx.jsonRDD(self.sc.parallelize(["""{"a":2}"""]))
+        df = self.sqlCtx.read.json(self.sc.parallelize(["""{"a":2}"""]))
         df2 = self.sqlCtx.createDataFrame(df.map(lambda x: x), df.schema)
         self.assertEqual(df.collect(), df2.collect())
 
@@ -747,6 +747,13 @@ class SQLTests(ReusedPySparkTestCase):
         except ValueError:
             self.assertEqual(1, 1)
 
+    def test_metadata_null(self):
+        from pyspark.sql.types import StructType, StringType, StructField
+        schema = StructType([StructField("f1", StringType(), True, None),
+                             StructField("f2", StringType(), True, {'a': None})])
+        rdd = self.sc.parallelize([["a", "b"], ["c", "d"]])
+        self.sqlCtx.createDataFrame(rdd, schema)
+
     def test_save_and_load(self):
         df = self.df
         tmpPath = tempfile.mkdtemp()
@@ -814,7 +821,7 @@ class SQLTests(ReusedPySparkTestCase):
     def test_help_command(self):
         # Regression test for SPARK-5464
         rdd = self.sc.parallelize(['{"foo":"bar"}', '{"foo":"baz"}'])
-        df = self.sqlCtx.jsonRDD(rdd)
+        df = self.sqlCtx.read.json(rdd)
         # render_doc() reproduces the help() exception without printing output
         pydoc.render_doc(df)
         pydoc.render_doc(df.foo)
