@@ -21,7 +21,7 @@
   <parent>
     <groupId>org.apache.spark</groupId>
     <artifactId>spark-parent_2.10</artifactId>
-    <version>1.6.0-csd-12-SNAPSHOT</version>
+    <version>1.6.0-csd-12</version>
     <relativePath>../../pom.xml</relativePath>
   </parent>
 
@@ -120,13 +120,13 @@
             <configuration>
               <target>
                 <macrodef name="shaded">
-                  <attribute name="resource"/>
+                  <attribute name="resource" />
                   <sequential>
                     <fail message="Not found ${shade}@{resource}">
                       <condition>
                         <not>
                           <resourceexists>
-                            <zipentry zipfile="${shuffle.jar}" name="${shade}@{resource}"/>
+                            <zipentry zipfile="${shuffle.jar}" name="${shade}@{resource}" />
                           </resourceexists>
                         </not>
                       </condition>
