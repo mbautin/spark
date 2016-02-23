@@ -21,7 +21,7 @@
   <parent>
     <groupId>org.apache.spark</groupId>
     <artifactId>spark-parent_2.10</artifactId>
-    <version>1.6.0-csd-13-SNAPSHOT</version>
+    <version>1.6.1-csd-1-SNAPSHOT</version>
     <relativePath>../../pom.xml</relativePath>
   </parent>
 
@@ -71,6 +71,12 @@
       <artifactId>protobuf-java</artifactId>
       <version>${protobuf.version}</version>
     </dependency>
+-->
+    <dependency>
+      <groupId>${hive.group}</groupId>
+      <artifactId>hive-cli</artifactId>
+    </dependency>
+<!--
     <dependency>
       <groupId>${hive.group}</groupId>
       <artifactId>hive-common</artifactId>
