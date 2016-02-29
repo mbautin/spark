@@ -62,10 +62,15 @@ case class BroadcastHashJoin(
   override def requiredChildDistribution: Seq[Distribution] =
     UnspecifiedDistribution :: UnspecifiedDistribution :: Nil
 
+  @transient
+  @volatile
+  private[joins] var broadcastFutureInitialized = false
+
   // Use lazy so that we won't do broadcast when calling explain but still cache the broadcast value
   // for the same query.
   @transient
-  private lazy val broadcastFuture = {
+  private[joins] lazy val broadcastFuture = {
+    broadcastFutureInitialized = true
     val numBuildRows = buildSide match {
       case BuildLeft => longMetric("numLeftRows")
       case BuildRight => longMetric("numRightRows")
