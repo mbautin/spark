@@ -21,11 +21,7 @@
   <parent>
     <groupId>org.apache.spark</groupId>
     <artifactId>spark-parent_2.10</artifactId>
-<<<<<<< HEAD
     <version>1.6.1-csd-3-SNAPSHOT</version>
-=======
-    <version>1.6.2-SNAPSHOT</version>
->>>>>>> fedb81360b0a247bb9cca4612d879667774557ad
     <relativePath>../pom.xml</relativePath>
   </parent>
 

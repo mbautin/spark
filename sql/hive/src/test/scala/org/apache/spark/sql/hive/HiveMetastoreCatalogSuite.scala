@@ -68,6 +68,7 @@ class HiveMetastoreCatalogSuite extends SparkFunSuite with TestHiveSingleton {
 
     hiveContext.range(10).write.saveAsTable("spark13454")
     hiveContext.sql("drop table spark13454")
+  }
 }
 
 class ParquetLocationSelectionSuite extends QueryTest with SQLTestUtils with TestHiveSingleton {
